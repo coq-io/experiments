@@ -1,2 +1,2 @@
-# io-experiments
+# IO Experiments
 Experiments with Coq effects.
