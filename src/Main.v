@@ -1,5 +1,7 @@
 Require Import Io.All.
 
+Import C.Notations.
+
 Module Counter.
   Inductive t : Set :=
   | Read
@@ -14,6 +16,12 @@ Module Counter.
   Definition effect : Effects.t := {|
     Effects.command := t;
     Effects.answer := answer |}.
+
+  Definition read : C.t effect nat :=
+    call effect Read.
+
+  Definition incr : C.t effect unit :=
+    call effect Incr.
 End Counter.
 
 Module BinaryTree.
@@ -38,5 +46,15 @@ Module BinaryTree.
   End Functional.
 
   Module Imperative.
+    Fixpoint tag {A : Type} (tree : t A) : C.t Counter.effect (t (nat * A)) :=
+      match tree with
+      | Leaf => ret Leaf
+      | Node tree_left x tree_right =>
+        let! tree_left := tag tree_left in
+        let! i := Counter.read in
+        do! Counter.incr in
+        let! tree_right := tag tree_right in
+        ret (Node tree_left (i, x) tree_right)
+      end.
   End Imperative.
 End BinaryTree.
