@@ -63,16 +63,19 @@ Module BinaryTree.
   End Functional.
 
   Module Imperative.
-    Fixpoint tag {A : Type} (tree : t A) : C.t Counter.effect (t (nat * A)) :=
+    Fixpoint tag_aux {A : Type} (tree : t A) : C.t Counter.effect (t (nat * A)) :=
       match tree with
       | Leaf => ret Leaf
       | Node x tree_left tree_right =>
-        let! tree_left := tag tree_left in
+        let! tree_left := tag_aux tree_left in
         let! i := Counter.read in
         do! Counter.incr in
-        let! tree_right := tag tree_right in
+        let! tree_right := tag_aux tree_right in
         ret (Node (i, x) tree_left tree_right)
       end.
+
+    Definition tag {A : Type} (i : nat) (tree : t A) : t (nat * A) :=
+      snd (Counter.run i (tag_aux tree)).
   End Imperative.
 
   Module Tests.
@@ -95,6 +98,9 @@ Module BinaryTree.
           (Node (5, "Bob") Leaf Leaf)).
 
     Definition functional_ok : Functional.tag 1 input = output :=
+      eq_refl.
+
+    Definition imperative_ok : Imperative.tag 1 input = output :=
       eq_refl.
   End Tests.
 End BinaryTree.
