@@ -44,7 +44,7 @@ End Counter.
 Module BinaryTree.
   Inductive t (A : Type) : Type :=
   | Leaf : t A
-  | Node : t A -> A -> t A -> t A.
+  | Node : A -> t A -> t A -> t A.
   Arguments Leaf [A].
   Arguments Node [A] _ _ _.
 
@@ -52,10 +52,10 @@ Module BinaryTree.
     Fixpoint tag_aux {A : Type} (i : nat) (tree : t A) : nat * t (nat * A) :=
       match tree with
       | Leaf => (i, Leaf)
-      | Node tree_left x tree_right =>
+      | Node x tree_left tree_right =>
         let (i_left, tree_left) := tag_aux i tree_left in
         let (i_right, tree_right) := tag_aux (i_left + 1) tree_right in
-        (i_right, Node tree_left (i_left, x) tree_right)
+        (i_right, Node (i_left, x) tree_left tree_right)
       end.
 
     Definition tag {A : Type} (i : nat) (tree : t A) : t (nat * A) :=
@@ -66,12 +66,35 @@ Module BinaryTree.
     Fixpoint tag {A : Type} (tree : t A) : C.t Counter.effect (t (nat * A)) :=
       match tree with
       | Leaf => ret Leaf
-      | Node tree_left x tree_right =>
+      | Node x tree_left tree_right =>
         let! tree_left := tag tree_left in
         let! i := Counter.read in
         do! Counter.incr in
         let! tree_right := tag tree_right in
-        ret (Node tree_left (i, x) tree_right)
+        ret (Node (i, x) tree_left tree_right)
       end.
   End Imperative.
+
+  Module Tests.
+    Require Import Coq.Strings.String.
+
+    Local Open Scope string.
+
+    Definition input : t string :=
+      Node "Fred"
+        (Node "Jim" Leaf Leaf)
+        (Node "Sheila"
+          (Node "Alice" Leaf Leaf)
+          (Node "Bob" Leaf Leaf)).
+
+    Definition output : t (nat * string) :=
+      Node (2, "Fred")
+        (Node (1, "Jim") Leaf Leaf)
+        (Node (4, "Sheila")
+          (Node (3, "Alice") Leaf Leaf)
+          (Node (5, "Bob") Leaf Leaf)).
+
+    Definition functional_ok : Functional.tag 1 input = output :=
+      eq_refl.
+  End Tests.
 End BinaryTree.
