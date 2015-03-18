@@ -22,6 +22,23 @@ Module Counter.
 
   Definition incr : C.t effect unit :=
     call effect Incr.
+
+  Fixpoint run {A : Type} (n : nat) (x : C.t effect A) : nat * A :=
+    match x with
+    | C.Ret _ x => (n, x)
+    | C.Call Read => (n, n)
+    | C.Call Incr => (S n, tt)
+    | C.Let _ _ x f =>
+      let (n, x) := run n x in
+      run n (f x)
+    | C.Join _ _ x y =>
+      let (n_x, x) := run n x in
+      let (n_y, y) := run n y in
+      (max n_x n_y, (x, y))
+    | C.First _ _ x y =>
+      let (n, x) := run n x in
+      (n, inl x)
+    end.
 End Counter.
 
 Module BinaryTree.
