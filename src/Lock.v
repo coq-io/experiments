@@ -27,5 +27,16 @@ Definition lock {L A : Type} (l : L) (x : C.t (effect L) A)
   ret x.
 
 Module LockFree.
-  Definition C := C.t (effect bool).
+  Definition C := C.t (effect unit).
+
+  Definition program : C unit :=
+    do! lock tt (ret tt) in
+    lock tt (ret tt).
 End LockFree.
+
+Module Locked.
+  Definition C := C.t (effect unit).
+
+  Definition program : C unit :=
+    lock tt (lock tt (ret tt)).
+End Locked.
