@@ -1,4 +1,5 @@
 Makefile
+Makefile.bak
 *.vo
 *.v.d
 *.glob

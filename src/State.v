@@ -13,9 +13,9 @@ Module Counter.
     | Incr => unit
     end.
 
-  Definition effect : Effects.t := {|
-    Effects.command := t;
-    Effects.answer := answer |}.
+  Definition effect : Effect.t := {|
+    Effect.command := t;
+    Effect.answer := answer |}.
 
   Definition read : C.t effect nat :=
     call effect Read.
