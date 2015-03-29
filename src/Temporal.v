@@ -124,3 +124,17 @@ Module CCS.
       ret tt
     end.
 End CCS.
+
+(** Definition of the LTL logic for the computations. *)
+Module LTL.
+  Definition t {E : Effect.t} {A : Type} :=
+    C.t E A -> Prop.
+
+  Module Event.
+    Record t (E : Effect.t) := New {
+      command : Effect.command E;
+      answer : Effect.answer E command }.
+    Arguments command {E} _.
+    Arguments answer {E} _.
+  End Event.
+End LTL.
