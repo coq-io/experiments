@@ -43,14 +43,66 @@ Fixpoint run {E : Effect.t} {S A : Type}
 Module Action.
   Record t (A : Type) := New {
     eqb : A -> A -> bool }.
+  Arguments eqb {A} _ _ _.
+
+  Definition rename {A : Type} (action : t A) (b a a' : A) : A :=
+    if eqb action b a then
+      a'
+    else
+      a.
 End Action.
+
+Module Trace.
+  Inductive t (A : Type) :=
+  | Empty : t A
+  | Do : A -> t A -> t A
+  | Join : t A -> t A -> t A
+  | First : t A -> t A -> t A.
+  Arguments Empty {A}.
+  Arguments Do {A} _ _.
+  Arguments Join {A} _ _.
+  Arguments First {A} _ _.
+End Trace.
 
 Module CCS.
   Inductive t {A : Type} (action : Action.t A) : Type :=
   | Empty : t action
-  | Do : forall (a : A), t action
-  | Choice : t action -> t action -> t action
-  | Parallel : t action -> t action -> t action
-  | Rename : t action -> A -> A -> t action
-  | Restrict : t action -> A -> t action.
+  | Do : A -> t action -> t action
+  | Join : t action -> t action -> t action
+  | First : t action -> t action -> t action.
+  Arguments Empty {A action}.
+  Arguments Do {A action} _ _.
+  Arguments Join {A action} _ _.
+  Arguments First {A action} _ _.
+
+  Fixpoint rename {A : Type} {action : Action.t A} (x : t action) (a a' : A)
+    : t action :=
+    match x with
+    | Empty => x
+    | Do b x => Do (Action.rename action b a a') (rename x a a')
+    | Join x y => Join (rename x a a') (rename y a a')
+    | First x y => First (rename x a a') (rename y a a')
+    end.
+
+  Fixpoint restrict {A : Type} {action : Action.t A} (x : t action) (a : A)
+    : t action :=
+    match x with
+    | Empty => x
+    | Do b x =>
+      let x := restrict x a in
+      if Action.eqb action a b then
+        x
+      else
+        Do b x
+    | Join x y => Join (restrict x a) (restrict y a)
+    | First x y => First (restrict x a) (restrict y a)
+    end.
+
+  Fixpoint run {A : Type} {action : Action.t A} (x : t action) : Trace.t A :=
+    match x with
+    | Empty => Trace.Empty
+    | Do a x => Trace.Do a (run x)
+    | Join x y => Trace.Join (run x) (run y)
+    | First x y => Trace.First (run x) (run y)
+    end.
 End CCS.
