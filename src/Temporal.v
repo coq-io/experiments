@@ -39,32 +39,32 @@ Fixpoint run {E : Effect.t} {S A : Type}
   (* | C.Join _ _ x y => *)
   end.*)
 
-(** Compilation from CCS. *)
-Module Action.
-  Record t (A : Type) := New {
-    eqb : A -> A -> bool }.
-  Arguments eqb {A} _ _ _.
-
-  Definition rename {A : Type} (action : t A) (b a a' : A) : A :=
-    if eqb action b a then
-      a'
-    else
-      a.
-End Action.
-
-Module Trace.
-  Inductive t (A : Type) :=
-  | Empty : t A
-  | Do : A -> t A -> t A
-  | Join : t A -> t A -> t A
-  | First : t A -> t A -> t A.
-  Arguments Empty {A}.
-  Arguments Do {A} _ _.
-  Arguments Join {A} _ _.
-  Arguments First {A} _ _.
-End Trace.
-
+(** CCS and compilation to computations. *)
 Module CCS.
+  Module Action.
+    Record t (A : Type) := New {
+      eqb : A -> A -> bool }.
+    Arguments eqb {A} _ _ _.
+
+    Definition rename {A : Type} (action : t A) (b a a' : A) : A :=
+      if eqb action b a then
+        a'
+      else
+        a.
+  End Action.
+
+  Module Trace.
+    Inductive t (A : Type) :=
+    | Empty : t A
+    | Do : A -> t A -> t A
+    | Join : t A -> t A -> t A
+    | First : t A -> t A -> t A.
+    Arguments Empty {A}.
+    Arguments Do {A} _ _.
+    Arguments Join {A} _ _.
+    Arguments First {A} _ _.
+  End Trace.
+
   Inductive t {A : Type} (action : Action.t A) : Type :=
   | Empty : t action
   | Do : A -> t action -> t action
