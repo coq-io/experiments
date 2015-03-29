@@ -3,7 +3,9 @@ Require Import Io.All.
 
 Import C.Notations.
 
-(*Module Automata.
+(*
+(** Compilation to automata. *)
+Module Automata.
   Definition t (S : Type) := S -> S -> Prop.
 
   Definition empty {S : Type} : t S :=
@@ -36,3 +38,19 @@ Fixpoint run {E : Effect.t} {S A : Type}
     end
   (* | C.Join _ _ x y => *)
   end.*)
+
+(** Compilation from CCS. *)
+Module Action.
+  Record t (A : Type) := New {
+    eqb : A -> A -> bool }.
+End Action.
+
+Module CCS.
+  Inductive t {A : Type} (action : Action.t A) : Type :=
+  | Empty : t action
+  | Do : forall (a : A), t action
+  | Choice : t action -> t action -> t action
+  | Parallel : t action -> t action -> t action
+  | Rename : t action -> A -> A -> t action
+  | Restrict : t action -> A -> t action.
+End CCS.
