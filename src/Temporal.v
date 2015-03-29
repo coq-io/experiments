@@ -105,4 +105,22 @@ Module CCS.
     | Join x y => Trace.Join (run x) (run y)
     | First x y => Trace.First (run x) (run y)
     end.
+
+  Definition effect (A : Type) : Effect.t :=
+    Effect.New A (fun _ => unit).
+
+  Fixpoint compile {A : Type} {action : Action.t A} (x : t action)
+    : C.t (effect A) unit :=
+    match x with
+    | Empty => ret tt
+    | Do a x =>
+      do! call (effect A) a in
+      compile x
+    | Join x y =>
+      let! _ := join (compile x) (compile y) in
+      ret tt
+    | First x y =>
+      let! _ := first (compile x) (compile y) in
+      ret tt
+    end.
 End CCS.
