@@ -4,5 +4,6 @@ src/CallbackJoin.v
 src/Callbacks.v
 src/Glue.v
 src/Lock.v
+src/Sequential.v
 src/State.v
 src/Temporal.v
