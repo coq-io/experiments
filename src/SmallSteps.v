@@ -195,4 +195,60 @@ Module ConstraintSmallStep.
     t answer state invariant (C.First _ _ (C.Ret _ v_x) y) s (C.Ret _ (inl v_x)) s
   | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B) (s : S),
     t answer state invariant (C.First _ _ x (C.Ret _ v_y)) s (C.Ret _ (inr v_y)) s.
+
+  Fixpoint non_blocking {E : Effect.t} {S : Type}
+    (answer : forall c, S -> Effect.answer E c)
+    (state : Effect.command E -> S -> S)
+    (invariant : S -> S -> Prop)
+    (progress : forall c s, invariant s (state c s))
+    {A : Type} (x : C.t E A) (s : S)
+    {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
+      (exists x' : C.t E A, exists s' : S, t answer state invariant x s x' s').
+    destruct x as [A v_x | c | A B x f | A B x y | A B x y].
+    - left.
+      now exists v_x.
+    - right.
+      exists (C.Ret _ (answer c s)).
+      exists (state c s).
+      apply Call.
+      apply progress.
+    - right.
+      destruct (non_blocking _ _ answer _ _ progress _ x s) as [H | H].
+      + destruct H as [v_x H]; rewrite H.
+        exists (f v_x).
+        exists s.
+        now apply Let.
+      + destruct H as [x' H]; destruct H as [s' H].
+        exists (C.Let _ _ x' f).
+        exists s'.
+        now apply LetLeft.
+    - right.
+      destruct (non_blocking _ _ answer _ _ progress _ x s) as [H_x | H_x].
+      + destruct H_x as [v_x H_x].
+        destruct (non_blocking _ _ answer _ _ progress _ y s) as [H_y | H_y].
+        * destruct H_y as [v_y H_y].
+          exists (C.Ret _ (v_x, v_y)).
+          exists s.
+          rewrite H_x; rewrite H_y.
+          apply Join.
+        * destruct H_y as [y' H_y]; destruct H_y as [s' H_y].
+          exists (C.Join _ _ x y').
+          exists s'.
+          now apply JoinRight.
+      + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
+        exists (C.Join _ _ x' y).
+        exists s'.
+        now apply JoinLeft.
+    - right.
+      destruct (non_blocking _ _ answer _ _ progress _ x s) as [H_x | H_x].
+      + destruct H_x as [v_x H_x].
+        exists (C.Ret _ (inl v_x)).
+        exists s.
+        rewrite H_x.
+        apply FirstInl.
+      + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
+        exists (C.First _ _ x' y).
+        exists s'.
+        now apply FirstLeft.
+  Qed.
 End ConstraintSmallStep.
