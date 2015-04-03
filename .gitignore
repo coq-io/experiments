@@ -1,3 +1,5 @@
+*.aux
+.coq-native
 Makefile
 Makefile.bak
 *.vo
