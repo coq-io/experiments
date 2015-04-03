@@ -23,27 +23,24 @@ Module SmallStep.
     t (C.First _ _ (C.Ret _ v_x) y) (C.Ret _ (inl v_x))
   | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B),
     t (C.First _ _ x (C.Ret _ v_y)) (C.Ret _ (inr v_y)).
-End SmallStep.
 
-Module NonValue.
   Fixpoint non_blocking {E : Effect.t} (a : forall c, Effect.answer E c)
     {A : Type} (x : C.t E A)
-    : (exists v_x : A, x = C.Ret _ v_x) \/
-      (exists x' : C.t E A, SmallStep.t x x').
+    : (exists v_x : A, x = C.Ret _ v_x) \/ (exists x' : C.t E A, t x x').
     destruct x as [A v_x | c | A B x f | A B x y | A B x y].
     - left.
       now exists v_x.
     - right.
       exists (C.Ret _ (a c)).
-      apply SmallStep.Call.
+      apply Call.
     - right.
       destruct (non_blocking _ a _ x) as [H | H].
       + destruct H as [v_x H]; rewrite H.
         exists (f v_x).
-        now apply SmallStep.Let.
+        now apply Let.
       + destruct H as [x' H].
         exists (C.Let _ _ x' f).
-        now apply SmallStep.LetLeft.
+        now apply LetLeft.
     - right.
       destruct (non_blocking _ a _ x) as [H_x | H_x].
       + destruct H_x as [v_x H_x].
@@ -51,24 +48,25 @@ Module NonValue.
         * destruct H_y as [v_y H_y].
           exists (C.Ret _ (v_x, v_y)).
           rewrite H_x; rewrite H_y.
-          apply SmallStep.Join.
+          apply Join.
         * destruct H_y as [y' H_y].
           exists (C.Join _ _ x y').
-          now apply SmallStep.JoinRight.
+          now apply JoinRight.
       + destruct H_x as [x' H_x].
         exists (C.Join _ _ x' y).
-        now apply SmallStep.JoinLeft.
+        now apply JoinLeft.
     - right.
       destruct (non_blocking _ a _ x) as [H_x | H_x].
       + destruct H_x as [v_x H_x].
         exists (C.Ret _ (inl v_x)).
         rewrite H_x.
-        apply SmallStep.FirstInl.
+        apply FirstInl.
       + destruct H_x as [x' H_x].
         exists (C.First _ _ x' y).
-        now apply SmallStep.FirstLeft.
+        now apply FirstLeft.
   Qed.
-End NonValue.
+End SmallStep.
+
 
 Module State.
   Module SmallStep.
