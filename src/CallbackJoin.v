@@ -1,3 +1,4 @@
+(** Callbacks with a join. But the join is stronger than the let ... *)
 Require Import Io.All.
 
 Module C.
@@ -12,13 +13,15 @@ Module C.
   Arguments Join {E A B C} _ _ _.
   Arguments First {E A B C} _ _ _.
 
-  Fixpoint compile {E : Effect.t} {A B : Type} (x : Io.C.t E A) (k : A -> t E B)
-    {struct x} : t E B.
-    destruct x.
-    - exact (k x).
-    - exact (Call command k).
-    - exact (compile _ _ _ x (fun x => compile _ _ _ (t0 x) k)).
-    - exact (Join (compile _ _ _ x1 Ret) (compile _ _ _ x2 Ret) (fun x y => k (x, y))).
-    - exact (First (compile _ _ _ x1 Ret) (compile _ _ _ x2 Ret) (fun xy => k xy)).
-  Defined.
+  Fixpoint compile {E : Effect.t} {A B : Type} (x : Io.C.t E A)
+    : (A -> t E B) -> t E B :=
+    match x with
+    | Io.C.Ret _ x => fun k => k x
+    | Io.C.Call c => fun k => Call c k
+    | Io.C.Let _ _ x f => fun k => compile x (fun x => compile (f x) k)
+    | Io.C.Join _ _ x y => fun k =>
+      Join (compile x Ret) (compile y Ret) (fun x y => k (x, y))
+    | Io.C.First _ _ x y => fun k =>
+      First (compile x Ret) (compile y Ret) (fun xy => k xy)
+    end.
 End C.
