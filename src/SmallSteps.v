@@ -70,8 +70,8 @@ End SmallStep.
 Module StateSmallStep.
   Inductive t {E : Effect.t} {S : Type}
     (answer : forall c, S -> Effect.answer E c)
-    (state : Effect.command E -> S -> S) : forall {A : Type},
-    C.t E A -> S -> C.t E A -> S -> Prop :=
+    (state : Effect.command E -> S -> S)
+    : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
   | Call : forall (c : Effect.command E) (s : S),
     t answer state (C.Call c) s (C.Ret _ (answer c s)) (state c s)
   | LetLeft : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
@@ -156,3 +156,43 @@ Module StateSmallStep.
         now apply FirstLeft.
   Qed.
 End StateSmallStep.
+
+Module ConstraintSmallStep.
+  Inductive t {E : Effect.t} {S : Type}
+    (answer : forall c, S -> Effect.answer E c)
+    (state : Effect.command E -> S -> S)
+    (invariant : S -> S -> Prop)
+    : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
+  | Call : forall (c : Effect.command E) (s : S),
+    invariant s (state c s) ->
+    t answer state invariant (C.Call c) s (C.Ret _ (answer c s)) (state c s)
+  | LetLeft : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
+    (x' : C.t E A) (s s' : S),
+    t answer state invariant x s x' s' ->
+    t answer state invariant (C.Let _ _ x f) s (C.Let _ _ x' f) s'
+  | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B) (v_x : A)
+    (s : S),
+    t answer state invariant (C.Let _ _ (C.Ret _ v_x) f) s (f v_x) s
+  | JoinLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
+    (s s' : S),
+    t answer state invariant x s x' s' ->
+    t answer state invariant (C.Join _ _ x y) s (C.Join _ _ x' y) s'
+  | JoinRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
+    (s s' : S),
+    t answer state invariant y s y' s' ->
+    t answer state invariant (C.Join _ _ x y) s (C.Join _ _ x y') s'
+  | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
+    t answer state invariant (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s
+  | FirstLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
+    (s s' : S),
+    t answer state invariant x s x' s' ->
+    t answer state invariant (C.First _ _ x y) s (C.First _ _ x' y) s'
+  | FirstRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
+    (s s' : S),
+    t answer state invariant y s y' s' ->
+    t answer state invariant (C.First _ _ x y) s (C.First _ _ x y') s'
+  | FirstInl : forall (A B : Type) (v_x : A) (y : C.t E B) (s : S),
+    t answer state invariant (C.First _ _ (C.Ret _ v_x) y) s (C.Ret _ (inl v_x)) s
+  | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B) (s : S),
+    t answer state invariant (C.First _ _ x (C.Ret _ v_y)) s (C.Ret _ (inr v_y)) s.
+End ConstraintSmallStep.
