@@ -2,6 +2,7 @@
 
 src/CallbackJoin.v
 src/Callbacks.v
+src/Compile.v
 src/Glue.v
 src/Lock.v
 src/Positive.v
