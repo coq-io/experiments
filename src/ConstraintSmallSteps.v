@@ -11,7 +11,7 @@ Module Model.
   Arguments answer {E S} _ _ _.
   Arguments state {E S} _ _ _.
   Arguments invariant {E S} _ _ _.
-  End Model.
+End Model.
 
 Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
   : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
