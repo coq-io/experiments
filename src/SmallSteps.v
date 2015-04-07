@@ -1,6 +1,8 @@
 (** A small-steps semantics for computations. *)
 Require Import Io.All.
 
+Import C.Notations.
+
 Module SmallStep.
   Inductive t {E : Effect.t} : forall {A : Type}, C.t E A -> C.t E A -> Prop :=
   | Call : forall (c : Effect.command E) (a : Effect.answer E c),
@@ -264,6 +266,12 @@ Module ConstraintSmallStep.
     Definition E : Effect.t :=
       Effect.New Command.t (fun _ => unit).
 
+    Definition lock : C.t E unit :=
+      call E Command.Lock.
+
+    Definition unlock : C.t E unit :=
+      call E Command.Unlock.
+
     Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
       tt.
 
@@ -278,5 +286,9 @@ Module ConstraintSmallStep.
       | Lock : t false true
       | Unlock : forall b, t b false.
     End Invariant.
+
+    Definition ex1 : C.t E unit :=
+      do! lock in
+      unlock.
   End Lock.
 End ConstraintSmallStep.
