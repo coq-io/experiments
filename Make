@@ -3,6 +3,7 @@
 src/CallbackJoin.v
 src/Callbacks.v
 src/Compile.v
+src/ConstraintSmallSteps.v
 src/Glue.v
 src/Lock.v
 src/Positive.v
