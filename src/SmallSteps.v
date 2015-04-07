@@ -251,4 +251,32 @@ Module ConstraintSmallStep.
         exists s'.
         now apply FirstLeft.
   Qed.
+
+  Module Lock.
+    Definition S := bool.
+
+    Module Command.
+      Inductive t :=
+      | Lock
+      | Unlock.
+    End Command.
+
+    Definition E : Effect.t :=
+      Effect.New Command.t (fun _ => unit).
+
+    Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+      tt.
+
+    Definition state (c : Effect.command E) (s : S) : S :=
+      match c with
+      | Command.Lock => true
+      | Command.Unlock => false
+      end.
+
+    Module Invariant.
+      Inductive t : S -> S -> Prop :=
+      | Lock : t false true
+      | Unlock : forall b, t b false.
+    End Invariant.
+  End Lock.
 End ConstraintSmallStep.
