@@ -8,6 +8,7 @@ Module Model.
     answer : forall c, S -> Effect.answer E c;
     state : Effect.command E -> S -> S;
     invariant : S -> S -> Prop }.
+  Arguments New {E S} _ _ _.
   Arguments answer {E S} _ _ _.
   Arguments state {E S} _ _ _.
   Arguments invariant {E S} _ _ _.
@@ -160,7 +161,23 @@ Module Lock.
     | Unlock : forall b, t b false.
   End Invariant.
 
+  Definition m : Model.t E S :=
+    Model.New answer state Invariant.t.
+
   Definition ex1 : C.t E unit :=
     do! lock in
     unlock.
+
+  (*Lemma ex1_progress : Progresses.t m ex1 false.
+    Check Progresses.Steps.
+    eapply Progresses.Steps.
+    - apply Step.LetLeft.
+      apply Step.Call with (m := m).
+      apply Invariant.Lock.
+    - intros x' s' step.
+      case_eq step.
+      destruct step.
+      + apply Progresses.Value.
+    apply (Progresses.Steps _ _ _ _ _ (Step.LetLeft _ _ _ _ _ _ _ _ _)).
+  Qed.*)
 End Lock.
