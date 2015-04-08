@@ -1,4 +1,5 @@
 (** A small-steps semantics for computations with constraints on the model. *)
+Require Import ErrorHandlers.All.
 Require Import Io.All.
 
 Import C.Notations.
@@ -262,6 +263,24 @@ Module Progress.
     t (ClosedM.compile (M.compile (m := m) x) s).
 End Progress.
 
+(** Try to solve automatically the [Progress.t] predicate. *)
+Module Solve.
+  Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
+    : option (Progress.t x) :=
+    match x with
+    | ClosedM.Ret x => Some (Progress.Ret x)
+    | ClosedM.Call c s h =>
+      Option.bind (dec c s) (fun H =>
+      Option.bind (solve dec (h H)) (fun p_h =>
+      Some (Progress.Call c s h H p_h)))
+    | ClosedM.Choose x1 x2 =>
+      Option.bind (solve dec x1) (fun p_x1 =>
+      Option.bind (solve dec x2) (fun p_x2 =>
+      Some (Progress.Choose x1 x2 p_x1 p_x2)))
+    end.
+End Solve.
+
 Module Lock.
   Definition S := bool.
 
@@ -299,7 +318,7 @@ Module Lock.
   Definition m : Model.t E S :=
     Model.New Condition.t answer state.
 
-  Definition ex1 : C.t E unit :=
+  (*Definition ex1 : C.t E unit :=
     do! lock in
     unlock.
 
@@ -335,4 +354,10 @@ Module Lock.
     apply Progress.Call with (H := Condition.Unlock); simpl.
     apply Progress.Ret.
   Qed.
+
+  Definition ex4 : C.t E (unit * unit) :=
+    join (do! lock in unlock) (do! lock in unlock).
+
+  Compute (M.compile (m := m) ex4).
+  Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
 End Lock.
