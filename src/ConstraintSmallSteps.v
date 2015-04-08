@@ -311,4 +311,28 @@ Module Lock.
     apply Progress.Call with (H := Condition.Unlock); simpl.
     apply Progress.Ret.
   Qed.
+
+  Definition ex2 : C.t E (nat * nat) :=
+    join (ret 3) (ret 4).
+
+  Compute (M.compile (m := m) ex2).
+  Compute (ClosedM.compile (M.compile (m := m) ex2) false).
+
+  Lemma ex2_progress : Progress.of_C m ex2 false.
+    apply Progress.Ret.
+  Qed.
+
+  Definition ex3 : C.t E (nat * unit) :=
+    join (ret 3) (
+      do! lock in
+      unlock).
+
+  Compute (M.compile (m := m) ex3).
+  Compute (ClosedM.compile (M.compile (m := m) ex3) false).
+
+  Lemma ex3_progress : Progress.of_C m ex3 false.
+    apply Progress.Call with (H := Condition.Lock); simpl.
+    apply Progress.Call with (H := Condition.Unlock); simpl.
+    apply Progress.Ret.
+  Qed.
 End Lock.
