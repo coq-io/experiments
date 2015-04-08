@@ -128,6 +128,35 @@ Module Progresses.
     t m x s.
 End Progresses.
 
+Module M.
+  Inductive t (S : Type) (A : Type) :=
+  | Value : A -> t S A
+  | Step : (S -> t S A * S) -> t S A.
+  Arguments Value {S A} _.
+  Arguments Step {S A} _.
+
+  Definition ret {S A : Type} (x : A) : t S A :=
+    Value x.
+
+  Fixpoint bind {S A B : Type} (x : t S A) (f : A -> t S B) : t S B :=
+    match x with
+    | Value x => f x
+    | Step x =>
+      Step (fun s =>
+        let (x, s) := x s in
+        (bind x f, s))
+    end.
+End M.
+
+Module Joining.
+  Inductive t {S A B : Type} : M.t S A -> M.t S B -> M.t S (A * B) -> Prop :=
+  | Pure : forall (x : A) (y : B), t (M.Value x) (M.Value y) (M.Value (x, y))
+  | Left : forall x s' y z, (forall s, t (x s) y (z s)) ->
+    t (M.Step (fun s => (x s, s' s))) y (M.Step (fun s => (z s, s' s)))
+  | Right : forall x y s' z, (forall s, t x (y s) (z s)) ->
+    t x (M.Step (fun s => (y s, s' s))) (M.Step (fun s => (z s, s' s))).
+End Joining.
+
 Module Lock.
   Definition S := bool.
 
