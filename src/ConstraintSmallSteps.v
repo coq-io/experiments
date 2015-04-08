@@ -159,7 +159,7 @@ End Joining.*)
 
 Module Model.
   Record t (E : Effect.t) (S : Type) := New {
-    condition : Effect.command E -> S -> Prop;
+    condition : Effect.command E -> S -> Type;
     answer : forall c s, condition c s -> Effect.answer E c;
     state : forall c s, condition c s -> S }.
   Arguments New {E S} _ _ _.
@@ -231,23 +231,6 @@ Module M.
     end.
 End M.
 
-Module Denotation.
-  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
-    : forall {A : Type}, C.t E A -> M.t S A -> Prop :=
-  | Ret : forall (A : Type) (x : A), t m (C.Ret _ x) (M.Value x)
-  | Call : forall (c : Effect.command E) (s : S),
-    Model.invariant m s (Model.state m s) ->
-    t m (C.Call c) (M.Step a)
-  | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
-    (m_x : M.t S A) (m_f : A -> M.t S B),
-    t m x m_x -> (forall x, t m (f x) (m_f x)) ->
-    t m (C.Let _ _ x f) (M.bind m_x m_f)
-  | Join : forall (A B : Type) (x : C.t E A) (y : C.t E B)
-    (m_x : M.t S A) (m_y : M.t S B) (m_z : M.t S (A * B)),
-    t m x m_x -> t m y m_y -> Joining.t m_x m_y m_z ->
-    t m (C.Join _ _ x y) m_z.
-End Denotation.
-
 Module Lock.
   Definition S := bool.
 
@@ -266,23 +249,25 @@ Module Lock.
   Definition unlock : C.t E unit :=
     call E Command.Unlock.
 
-  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+  Module Condition.
+    Inductive t : Effect.command E -> S -> Type :=
+    | Lock : t Command.Lock false
+    | Unlock : t Command.Unlock true.
+  End Condition.
+
+  Definition answer (c : Effect.command E) (s : S) (H : Condition.t c s)
+    : Effect.answer E c :=
     tt.
 
-  Definition state (c : Effect.command E) (s : S) : S :=
-    match c with
-    | Command.Lock => true
-    | Command.Unlock => false
+  Definition state (c : Effect.command E) (s : S) (H : Condition.t c s)
+    : S :=
+    match H with
+    | Condition.Lock => true
+    | Condition.Unlock => false
     end.
 
-  Module Invariant.
-    Inductive t : S -> S -> Prop :=
-    | Lock : t false true
-    | Unlock : forall b, t b false.
-  End Invariant.
-
   Definition m : Model.t E S :=
-    Model.New answer state Invariant.t.
+    Model.New Condition.t answer state.
 
   Definition ex1 : C.t E unit :=
     do! lock in
