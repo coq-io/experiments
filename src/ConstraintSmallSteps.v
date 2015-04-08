@@ -231,6 +231,33 @@ Module M.
     end.
 End M.
 
+Module ClosedM.
+  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
+  | Ret : A -> t m A
+  | Call : forall (c : Effect.command E) (s : S),
+    (Model.condition m c s -> t m A) -> t m A
+  | Choose : t m A -> t m A -> t m A.
+  Arguments Ret {E S m A} _.
+  Arguments Call {E S m A} _ _ _.
+  Arguments Choose {E S m A} _ _.
+
+  Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    (x : M.t m A) (s : S) : t m A :=
+    match x with
+    | M.Ret x => Ret x
+    | M.Call c h => Call c s (fun H => compile (h s H) s)
+    | M.Choose x1 x2 => Choose (compile x1 s) (compile x2 s)
+    end.
+End ClosedM.
+
+Module Progress.
+  Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    : ClosedM.t m A -> Prop :=
+  | Ret : forall x, t (ClosedM.Ret x)
+  | Call : forall c s h H, t (h H) -> t (ClosedM.Call c s h)
+  | Choose : forall x1 x2, t x1 -> t x2 -> t (ClosedM.Choose x1 x2).
+End Progress.
+
 Module Lock.
   Definition S := bool.
 
@@ -259,8 +286,7 @@ Module Lock.
     : Effect.answer E c :=
     tt.
 
-  Definition state (c : Effect.command E) (s : S) (H : Condition.t c s)
-    : S :=
+  Definition state (c : Effect.command E) (s : S) (H : Condition.t c s) : S :=
     match H with
     | Condition.Lock => true
     | Condition.Unlock => false
@@ -272,6 +298,8 @@ Module Lock.
   Definition ex1 : C.t E unit :=
     do! lock in
     unlock.
+
+  Compute (M.compile ex1 : M.t m unit).
 
   (*Lemma ex1_progress : Progresses.t m ex1 false.
     Check Progresses.Steps.
