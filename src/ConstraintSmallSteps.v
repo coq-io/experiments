@@ -188,28 +188,32 @@ Module M.
 
   Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
-    let fix aux (x : t m A) (y : t m B) {struct y} : t m (A * B) :=
-      match (x, y) with
-      | (Ret x, Ret y) => Ret (x, y)
-      | (Ret x, _) => bind y (fun y => Ret (x, y))
-      | (_, Ret y) => bind x (fun x => Ret (x, y))
-      | (Choose x1 x2, _) => Choose (join x1 y) (join x2 y)
-      | (_, Choose y1 y2) => Choose (aux x y1) (aux x y2)
-      | (Call c_x h_x, Call c_y h_y) =>
-        Choose
+    let fix aux (y : t m B) {struct y} : t m (A * B) :=
+      match y with
+      | Ret y => bind x (fun x => Ret (x, y))
+      | Call c_y h_y =>
+        match x with
+        | Ret x => bind y (fun y => Ret (x, y))
+        | Call c_x h_x =>
+          Choose
           (Call c_x (fun s H => join (h_x s H) y))
-          (Call c_y (fun s H => aux x (h_y s H)))
+          (Call c_y (fun s H => aux (h_y s H)))
+        | Choose x1 x2 => Choose (join x1 y) (join x1 y)
+        end
+      | Choose y1 y2 => Choose (aux y1) (aux y2)
       end in
-    match (x, y) with
-    | (Ret x, Ret y) => Ret (x, y)
-    | (Ret x, _) => bind y (fun y => Ret (x, y))
-    | (_, Ret y) => bind x (fun x => Ret (x, y))
-    | (Choose x1 x2, _) => Choose (join x1 y) (join x2 y)
-    | (_, Choose y1 y2) => Choose (aux x y1) (aux x y2)
-    | (Call c_x h_x, Call c_y h_y) =>
-      Choose
+    match x with
+    | Ret x => bind y (fun y => Ret (x, y))
+    | Call c_x h_x =>
+      match y with
+      | Ret y => bind x (fun x => Ret (x, y))
+      | Call c_y h_y =>
+        Choose
         (Call c_x (fun s H => join (h_x s H) y))
-        (Call c_y (fun s H => aux x (h_y s H)))
+        (Call c_y (fun s H => aux (h_y s H)))
+      | Choose y1 y2 => Choose (aux y1) (aux y2)
+      end
+    | Choose x1 x2 => Choose (join x1 y) (join x2 y)
     end.
 
   Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B C : Type}
