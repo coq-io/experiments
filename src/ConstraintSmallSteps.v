@@ -3,7 +3,7 @@ Require Import Io.All.
 
 Import C.Notations.
 
-Module Model.
+(*Module Model.
   Record t (E : Effect.t) (S : Type) := New {
     answer : forall c, S -> Effect.answer E c;
     state : Effect.command E -> S -> S;
@@ -155,22 +155,109 @@ Module Joining.
     t (M.Step (fun s => (x s, s' s))) y (M.Step (fun s => (z s, s' s)))
   | Right : forall x y s' z, (forall s, t x (y s) (z s)) ->
     t x (M.Step (fun s => (y s, s' s))) (M.Step (fun s => (z s, s' s))).
-End Joining.
+End Joining.*)
+
+Module Model.
+  Record t (E : Effect.t) (S : Type) := New {
+    condition : Effect.command E -> S -> Prop;
+    answer : forall c s, condition c s -> Effect.answer E c;
+    state : forall c s, condition c s -> S }.
+  Arguments New {E S} _ _ _.
+  Arguments condition {E S} _ _ _.
+  Arguments answer {E S} _ {c s} _.
+  Arguments state {E S} _ {c s} _.
+End Model.
+
+Module M.
+  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
+  | Ret : A -> t m A
+  | Call : forall (c : Effect.command E),
+    (forall s, Model.condition m c s -> t m A) -> t m A
+  | Choose : t m A -> t m A -> t m A.
+  Arguments Ret {E S m A} _.
+  Arguments Call {E S m A} _ _.
+  Arguments Choose {E S m A} _ _.
+
+  Fixpoint bind {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (x : t m A) (f : A -> t m B) : t m B :=
+    match x with
+    | Ret x => f x
+    | Call c h => Call c (fun s H => bind (h s H) f)
+    | Choose x1 x2 => Choose (bind x1 f) (bind x2 f)
+    end.
+
+  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
+    let fix aux (x : t m A) (y : t m B) {struct y} : t m (A * B) :=
+      match (x, y) with
+      | (Ret x, Ret y) => Ret (x, y)
+      | (Ret x, _) => bind y (fun y => Ret (x, y))
+      | (_, Ret y) => bind x (fun x => Ret (x, y))
+      | (Choose x1 x2, _) => Choose (join x1 y) (join x2 y)
+      | (_, Choose y1 y2) => Choose (aux x y1) (aux x y2)
+      | (Call c_x h_x, Call c_y h_y) =>
+        Choose
+          (Call c_x (fun s H => join (h_x s H) y))
+          (Call c_y (fun s H => aux x (h_y s H)))
+      end in
+    match (x, y) with
+    | (Ret x, Ret y) => Ret (x, y)
+    | (Ret x, _) => bind y (fun y => Ret (x, y))
+    | (_, Ret y) => bind x (fun x => Ret (x, y))
+    | (Choose x1 x2, _) => Choose (join x1 y) (join x2 y)
+    | (_, Choose y1 y2) => Choose (aux x y1) (aux x y2)
+    | (Call c_x h_x, Call c_y h_y) =>
+      Choose
+        (Call c_x (fun s H => join (h_x s H) y))
+        (Call c_y (fun s H => aux x (h_y s H)))
+    end.
+
+  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B C : Type}
+    (x : t m A) (y : t m B) (k : A -> B -> t m C) {struct x} : t m C.
+    destruct x as [x | c_x h_x | x1 x2];
+      [exact (bind y (fun y => k x y)) | |];
+      destruct y as [y | c_y h_y | y1 y2].
+    - exact (k x y).
+    - exact (Call c_s (fun s H => bind )).
+    - refine (Choose (Call ) ()).
+  Defined.
+    match x with
+    | Ret x => fun k => bind y (fun y => k x y)
+    end.
+
+    match (x, y) with
+    | (Ret x, Ret y) => fun k => k x y
+    (* | (Ret x, Call c s h) => fun k => Call c s (fun H s => h H ) *)
+    end.
+
+  Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (x : C.t E A) (s : S) : (A -> S -> t m B) -> t m B :=
+    match x with
+    | C.Ret _ x => fun k => k x s
+    | C.Call c => fun k => Call c s (fun H s => k (Model.answer m H) s)
+    | C.Let _ _ x f => fun k => compile x s (fun x s => compile (f x) s k)
+    | C.Join A B x y => fun k =>
+      match (x, y) return t m (A * B) with
+      | (C.Ret _ x, C.Ret _ y) => k (Ret (x, y)) s
+      end
+    end.
+End M.
 
 Module Denotation.
-  Inductive t {E : Effect.t} {S : Type}
+  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
     : forall {A : Type}, C.t E A -> M.t S A -> Prop :=
-  | Ret : forall (A : Type) (x : A), t (C.Ret _ x) (M.Value x)
-  | Call : forall (c : Effect.command E) (a : Effect.answer E c),
-    t (C.Call c) (M.Value a)
+  | Ret : forall (A : Type) (x : A), t m (C.Ret _ x) (M.Value x)
+  | Call : forall (c : Effect.command E) (s : S),
+    Model.invariant m s (Model.state m s) ->
+    t m (C.Call c) (M.Step a)
   | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
     (m_x : M.t S A) (m_f : A -> M.t S B),
-    t x m_x -> (forall x, t (f x) (m_f x)) ->
-    t (C.Let _ _ x f) (M.bind m_x m_f)
+    t m x m_x -> (forall x, t m (f x) (m_f x)) ->
+    t m (C.Let _ _ x f) (M.bind m_x m_f)
   | Join : forall (A B : Type) (x : C.t E A) (y : C.t E B)
     (m_x : M.t S A) (m_y : M.t S B) (m_z : M.t S (A * B)),
-    t x m_x -> t y m_y -> Joining.t m_x m_y m_z ->
-    t (C.Join _ _ x y) m_z.
+    t m x m_x -> t m y m_y -> Joining.t m_x m_y m_z ->
+    t m (C.Join _ _ x y) m_z.
 End Denotation.
 
 Module Lock.
