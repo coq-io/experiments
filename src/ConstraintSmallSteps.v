@@ -159,7 +159,7 @@ End Joining.*)
 
 Module Model.
   Record t (E : Effect.t) (S : Type) := New {
-    condition : Effect.command E -> S -> Type;
+    condition : Effect.command E -> S -> Prop;
     answer : forall c s, condition c s -> Effect.answer E c;
     state : forall c s, condition c s -> S }.
   Arguments New {E S} _ _ _.
@@ -245,7 +245,7 @@ Module ClosedM.
     (x : M.t m A) (s : S) : t m A :=
     match x with
     | M.Ret x => Ret x
-    | M.Call c h => Call c s (fun H => compile (h s H) s)
+    | M.Call c h => Call c s (fun H => compile (h s H) (Model.state m H))
     | M.Choose x1 x2 => Choose (compile x1 s) (compile x2 s)
     end.
 End ClosedM.
@@ -256,6 +256,10 @@ Module Progress.
   | Ret : forall x, t (ClosedM.Ret x)
   | Call : forall c s h H, t (h H) -> t (ClosedM.Call c s h)
   | Choose : forall x1 x2, t x1 -> t x2 -> t (ClosedM.Choose x1 x2).
+
+  Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+    (x : C.t E A) (s : S) : Prop :=
+    t (ClosedM.compile (M.compile (m := m) x) s).
 End Progress.
 
 Module Lock.
@@ -277,7 +281,7 @@ Module Lock.
     call E Command.Unlock.
 
   Module Condition.
-    Inductive t : Effect.command E -> S -> Type :=
+    Inductive t : Effect.command E -> S -> Prop :=
     | Lock : t Command.Lock false
     | Unlock : t Command.Unlock true.
   End Condition.
@@ -287,9 +291,9 @@ Module Lock.
     tt.
 
   Definition state (c : Effect.command E) (s : S) (H : Condition.t c s) : S :=
-    match H with
-    | Condition.Lock => true
-    | Condition.Unlock => false
+    match c with
+    | Command.Lock => true
+    | Command.Unlock => false
     end.
 
   Definition m : Model.t E S :=
@@ -299,18 +303,12 @@ Module Lock.
     do! lock in
     unlock.
 
-  Compute (M.compile ex1 : M.t m unit).
+  Compute (M.compile (m := m) ex1).
+  Compute (ClosedM.compile (M.compile (m := m) ex1) false).
 
-  (*Lemma ex1_progress : Progresses.t m ex1 false.
-    Check Progresses.Steps.
-    eapply Progresses.Steps.
-    - apply Step.LetLeft.
-      apply Step.Call with (m := m).
-      apply Invariant.Lock.
-    - intros x' s' step.
-      case_eq step.
-      destruct step.
-      + apply Progresses.Value.
-    apply (Progresses.Steps _ _ _ _ _ (Step.LetLeft _ _ _ _ _ _ _ _ _)).
-  Qed.*)
+  Lemma ex1_progress : Progress.of_C m ex1 false.
+    apply Progress.Call with (H := Condition.Lock); simpl.
+    apply Progress.Call with (H := Condition.Unlock); simpl.
+    apply Progress.Ret.
+  Qed.
 End Lock.
