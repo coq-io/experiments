@@ -157,6 +157,22 @@ Module Joining.
     t x (M.Step (fun s => (y s, s' s))) (M.Step (fun s => (z s, s' s))).
 End Joining.
 
+Module Denotation.
+  Inductive t {E : Effect.t} {S : Type}
+    : forall {A : Type}, C.t E A -> M.t S A -> Prop :=
+  | Ret : forall (A : Type) (x : A), t (C.Ret _ x) (M.Value x)
+  | Call : forall (c : Effect.command E) (a : Effect.answer E c),
+    t (C.Call c) (M.Value a)
+  | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
+    (m_x : M.t S A) (m_f : A -> M.t S B),
+    t x m_x -> (forall x, t (f x) (m_f x)) ->
+    t (C.Let _ _ x f) (M.bind m_x m_f)
+  | Join : forall (A B : Type) (x : C.t E A) (y : C.t E B)
+    (m_x : M.t S A) (m_y : M.t S B) (m_z : M.t S (A * B)),
+    t x m_x -> t y m_y -> Joining.t m_x m_y m_z ->
+    t (C.Join _ _ x y) m_z.
+End Denotation.
+
 Module Lock.
   Definition S := bool.
 
