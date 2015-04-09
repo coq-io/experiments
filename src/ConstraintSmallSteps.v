@@ -271,25 +271,28 @@ End Progress.
 Module Solve.
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
-    : option (Progress.t x) :=
+    : Progress.t x + (Effect.command E * S) :=
     match x with
-    | ClosedM.Ret x => Some (Progress.Ret x)
+    | ClosedM.Ret x => inl (Progress.Ret x)
     | ClosedM.Call c s h =>
-      Option.bind (dec c s) (fun H =>
-      Option.bind (solve dec (h H)) (fun p_h =>
-      Some (Progress.Call c s h H p_h)))
+      match dec c s with
+      | None => inr (c, s)
+      | Some H =>
+        Sum.bind (solve dec (h H)) (fun p_h =>
+        inl (Progress.Call c s h H p_h))
+      end
     | ClosedM.Choose x1 x2 =>
-      Option.bind (solve dec x1) (fun p_x1 =>
-      Option.bind (solve dec x2) (fun p_x2 =>
-      Some (Progress.Choose x1 x2 p_x1 p_x2)))
+      Sum.bind (solve dec x1) (fun p_x1 =>
+      Sum.bind (solve dec x2) (fun p_x2 =>
+      inl (Progress.Choose x1 x2 p_x1 p_x2)))
     end.
 
   Definition is_progress {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
     : bool :=
     match solve dec x with
-    | Some _ => true
-    | None => false
+    | inl _ => true
+    | inr _ => false
     end.
 
   Lemma is_progress_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
@@ -399,6 +402,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
 
   Lemma ex4_auto : Progress.of_C m ex4 false.
+    Compute Solve.solve dec (ClosedM.of_C m ex4 false).
     now apply Solve.is_progress_ok with (dec := dec).
   Qed.
 End Lock.
