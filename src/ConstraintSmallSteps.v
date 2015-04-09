@@ -393,20 +393,24 @@ Module Solve.
 
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
-    : Progress.t x + (Effect.command E * S) :=
+    : option (Progress.t x) :=
+    let fix for_all {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+      : option (ClosedM.Tree.ForAll.t Progress.t tree) :=
+      match tree with
+      | Tree.Leaf (ClosedCall.New c s h) =>
+        Some (fun H => solve dec (h H))
+      | Tree.Node tree1 tree2 =>
+        Option.bind (for_all tree1) (fun p1 =>
+        Option.bind (for_all tree2) (fun p2 =>
+        Some (ClosedM.Tree.ForAll.Node Progress.t tree1 tree2 p1 p2)))
+      end in
     match x with
-    | ClosedM.Ret x => inl (Progress.Ret x)
-    | ClosedM.Call c s h =>
-      match dec c s with
-      | None => inr (c, s)
-      | Some H =>
-        Sum.bind (solve dec (h H)) (fun p_h =>
-        inl (Progress.Call c s h H p_h))
-      end
-    | ClosedM.Choose x1 x2 =>
-      Sum.bind (solve dec x1) (fun p_x1 =>
-      Sum.bind (solve dec x2) (fun p_x2 =>
-      inl (Progress.Choose x1 x2 p_x1 p_x2)))
+    | ClosedM.Ret x => Some (Progress.Ret x)
+    | ClosedM.Call tree =>
+      Option.bind (Tree.not_stuck dec tree) (fun H_not_stuck =>
+      Option.bind (for_all tree) (fun H_for_all =>
+      Some (Progress.Call tree H_not_stuck H_for_all)))
     end.
 
   Definition is_progress {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
