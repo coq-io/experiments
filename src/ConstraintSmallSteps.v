@@ -316,12 +316,49 @@ Module ClosedM.
   Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
     (x : C.t E A) (s : S) : t m A :=
     compile (M.compile x) s.
+
+  Module Tree.
+    Module NotStuck.
+      Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+        : Tree.t (ClosedCall.t m (ClosedM.t m A)) -> Prop :=
+      | Leaf : forall c s h, Model.condition m c s ->
+        t (Tree.Leaf (ClosedCall.New c s h))
+      | NodeLeft : forall tree1 tree2, t tree1 -> t (Tree.Node tree1 tree2)
+      | NodeRight : forall tree1 tree2, t tree2 -> t (Tree.Node tree1 tree2).
+    End NotStuck.
+
+    Module ForAll.
+      Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+        (P : ClosedM.t m A -> Prop)
+        : Tree.t (ClosedCall.t m (ClosedM.t m A)) -> Prop :=
+      | Leaf : forall c s h, (forall H, P (h H)) ->
+        t P (Tree.Leaf (ClosedCall.New c s h))
+      | NodeLeft : forall tree1 tree2, t P tree1 -> t P tree2 ->
+        t P (Tree.Node tree1 tree2).
+    End ForAll.
+  End Tree.
+
+  (*Module NotStuck.
+    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      : ClosedM.t m A -> Prop :=
+    | Ret : forall x, t (ClosedM.Ret x)
+    | Call : forall tree, Tree.NotStuck.t tree -> t (ClosedM.Call tree).
+  End NotStuck.*)
+
+  (*Module Always.
+    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      (P : ClosedM.t m A -> Prop) : ClosedM.t m A -> Prop :=
+    | Ret : forall x, .
+  End Always.*)
 End ClosedM.
 
 Module Progress.
   Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     : ClosedM.t m A -> Prop :=
-  | Ret : forall x, t (ClosedM.Ret x).
+  | Ret : forall x, t (ClosedM.Ret x)
+  | Call : forall tree,
+    ClosedM.Tree.NotStuck.t tree -> ClosedM.Tree.ForAll.t t tree ->
+    t (ClosedM.Call tree).
 
   Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
     (x : C.t E A) (s : S) : Prop :=
