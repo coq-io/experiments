@@ -162,12 +162,12 @@ End Joining.*)
 Module Model.
   Record t (E : Effect.t) (S : Type) := New {
     condition : Effect.command E -> S -> Prop;
-    answer : forall c s, condition c s -> Effect.answer E c;
-    state : forall c s, condition c s -> S }.
+    answer : forall c, S -> Effect.answer E c;
+    state : Effect.command E -> S -> S }.
   Arguments New {E S} _ _ _.
   Arguments condition {E S} _ _ _.
-  Arguments answer {E S} _ {c s} _.
-  Arguments state {E S} _ {c s} _.
+  Arguments answer {E S} _ _ _.
+  Arguments state {E S} _ _ _.
 End Model.
 
 Module Tree.
@@ -185,12 +185,12 @@ Module Tree.
 End Tree.
 
 Module Call.
-  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) := New {
+  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (T : Type) := New {
     c : Effect.command E;
-    h : forall s, Model.condition m c s -> A }.
-  Arguments New {E S m A} _ _.
-  Arguments c {E S m A} _.
-  Arguments h {E S m A} _ {s} _.
+    h : S -> T }.
+  Arguments New {E S m T} _ _.
+  Arguments c {E S m T} _.
+  Arguments h {E S m T} _ _.
 End Call.
 
 Module M.
@@ -206,7 +206,7 @@ Module M.
       : Tree.t (Call.t m (t m B)) :=
       match tree with
       | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (Call.New c (fun s H => bind (h s H) f))
+        Tree.Leaf (Call.New c (fun s => bind (h s) f))
       | Tree.Node tree1 tree2 => Tree.Node (binds tree1) (binds tree2)
       end in
     match x with
@@ -222,7 +222,7 @@ Module M.
           : Tree.t (Call.t m (t m (A * B))) :=
           match tree with
           | Tree.Leaf (Call.New c h) =>
-            Tree.Leaf (Call.New c (fun s H => join_left (h s H) y))
+            Tree.Leaf (Call.New c (fun s => join_left (h s) y))
           | Tree.Node tree1 tree2 =>
             Tree.Node (joins_left tree1) (joins_left tree2)
           end in
@@ -230,7 +230,7 @@ Module M.
           : Tree.t (Call.t m (t m (A * B))) :=
           match tree with
           | Tree.Leaf (Call.New c h) =>
-            Tree.Leaf (Call.New c (fun s H => join_right (h s H)))
+            Tree.Leaf (Call.New c (fun s => join_right (h s)))
           | Tree.Node tree1 tree2 =>
             Tree.Node (joins_right tree1) (joins_right tree2)
           end in
@@ -244,7 +244,7 @@ Module M.
         : Tree.t (Call.t m (t m (A * B))) :=
         match tree with
         | Tree.Leaf (Call.New c h) =>
-          Tree.Leaf (Call.New c (fun s H => join_left (h s H) y))
+          Tree.Leaf (Call.New c (fun s => join_left (h s) y))
         | Tree.Node tree1 tree2 =>
           Tree.Node (joins_left tree1) (joins_left tree2)
         end in
@@ -252,7 +252,7 @@ Module M.
         : Tree.t (Call.t m (t m (A * B))) :=
         match tree with
         | Tree.Leaf (Call.New c h) =>
-          Tree.Leaf (Call.New c (fun s H => join_right (h s H)))
+          Tree.Leaf (Call.New c (fun s => join_right (h s)))
         | Tree.Node tree1 tree2 =>
           Tree.Node (joins_right tree1) (joins_right tree2)
         end in
@@ -272,7 +272,7 @@ Module M.
     match x with
     | C.Ret _ x => Ret x
     | C.Call c =>
-      Call (Tree.Leaf (Call.New c (fun _ H => Ret (Model.answer m H))))
+      Call (Tree.Leaf (Call.New c (fun s => Ret (Model.answer m c s))))
     | C.Let _ _ x f => bind (compile x) (fun x => compile (f x))
     | C.Join  _ _ x y => join (compile x) (compile y)
     | C.First  _ _ x y => first (compile x) (compile y)
@@ -280,14 +280,14 @@ Module M.
 End M.
 
 Module ClosedCall.
-  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) := New {
+  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (T : Type) := New {
     c : Effect.command E;
     s : S;
-    h : Model.condition m c s -> A }.
-  Arguments New {E S m A} _ _ _.
-  Arguments c {E S m A} _.
-  Arguments s {E S m A} _.
-  Arguments h {E S m A} _ _.
+    h : T }.
+  Arguments New {E S m T} _ _ _.
+  Arguments c {E S m T} _.
+  Arguments s {E S m T} _.
+  Arguments h {E S m T} _.
 End ClosedCall.
 
 (** We link the states. *)
@@ -304,8 +304,7 @@ Module ClosedM.
       : Tree.t (ClosedCall.t m (t m A)) :=
       match tree with
       | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (ClosedCall.New c s (fun H =>
-          compile (h s H) (Model.state m H)))
+        Tree.Leaf (ClosedCall.New c s (compile (h s) (Model.state m c s)))
       | Tree.Node tree1 tree2 => Tree.Node (compiles tree1) (compiles tree2)
       end in
     match x with
@@ -331,8 +330,7 @@ Module ClosedM.
       Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
         (P : ClosedM.t m A -> Prop)
         : Tree.t (ClosedCall.t m (ClosedM.t m A)) -> Prop :=
-      | Leaf : forall c s h, (forall H, P (h H)) ->
-        t P (Tree.Leaf (ClosedCall.New c s h))
+      | Leaf : forall c s h, P h -> t P (Tree.Leaf (ClosedCall.New c s h))
       | Node : forall tree1 tree2, t P tree1 -> t P tree2 ->
         t P (Tree.Node tree1 tree2).
     End ForAll.
@@ -373,37 +371,21 @@ Module Solve.
           end
         end
       end.
-
-    Fixpoint for_all {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      {P : ClosedM.t m A -> Prop}
-      (dec : forall c s (h : Model.condition m c s -> ClosedM.t m A),
-        option (forall H, P (h H)))
-      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
-      : option (ClosedM.Tree.ForAll.t P tree) :=
-      match tree with
-      | Tree.Leaf (ClosedCall.New c s h) =>
-        Option.bind (dec c s h) (fun p =>
-        Some (ClosedM.Tree.ForAll.Leaf P c s h p))
-      | Tree.Node tree1 tree2 =>
-        Option.bind (for_all dec tree1) (fun p1 =>
-        Option.bind (for_all dec tree2) (fun p2 =>
-        Some (ClosedM.Tree.ForAll.Node P tree1 tree2 p1 p2)))
-      end.
   End Tree.
 
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
     : option (Progress.t x) :=
-    let fix for_all {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+    let fix for_all (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
       : option (ClosedM.Tree.ForAll.t Progress.t tree) :=
       match tree with
       | Tree.Leaf (ClosedCall.New c s h) =>
-        Some (fun H => solve dec (h H))
+        Option.bind (solve dec h) (fun H =>
+        Some (ClosedM.Tree.ForAll.Leaf Progress.t c s h H))
       | Tree.Node tree1 tree2 =>
-        Option.bind (for_all tree1) (fun p1 =>
-        Option.bind (for_all tree2) (fun p2 =>
-        Some (ClosedM.Tree.ForAll.Node Progress.t tree1 tree2 p1 p2)))
+        Option.bind (for_all tree1) (fun H1 =>
+        Option.bind (for_all tree2) (fun H2 =>
+        Some (ClosedM.Tree.ForAll.Node Progress.t tree1 tree2 H1 H2)))
       end in
     match x with
     | ClosedM.Ret x => Some (Progress.Ret x)
@@ -417,8 +399,8 @@ Module Solve.
     (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
     : bool :=
     match solve dec x with
-    | inl _ => true
-    | inr _ => false
+    | Some _ => true
+    | None => false
     end.
 
   Lemma is_progress_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
@@ -453,11 +435,10 @@ Module Lock.
     | Unlock : t Command.Unlock true.
   End Condition.
 
-  Definition answer (c : Effect.command E) (s : S) (H : Condition.t c s)
-    : Effect.answer E c :=
+  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
     tt.
 
-  Definition state (c : Effect.command E) (s : S) (H : Condition.t c s) : S :=
+  Definition state (c : Effect.command E) (s : S) : S :=
     match c with
     | Command.Lock => true
     | Command.Unlock => false
