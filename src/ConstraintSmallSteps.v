@@ -216,6 +216,58 @@ Module M.
 
   Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
+    let fix joins {A B : Type} (tree : Tree.t (Call.t m (t m A))) (next : t m B)
+      : Tree.t (Call.t m (t m (A * B))) :=
+      match tree with
+      | Tree.Leaf (Call.New c h) =>
+        Tree.Leaf (Call.New c (fun s H => join (h s H) next))
+      | Tree.Node tree1 tree2 => Tree.Node (joins tree1 next) (joins tree2 next)
+      end in
+    match x with
+    | Ret x => bind y (fun y => Ret (x, y))
+    | Call tree_x =>
+      match y with
+      | Ret y => bind x (fun x => Ret (x, y))
+      | Call tree_y => Call (Tree.Node (joins tree_x y) (joins tree_y x))
+      end
+    end.
+
+  Definition join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    : t m A -> t m B -> t m (A * B) :=
+    fix join_left (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
+      match (x, y) with
+      | (Ret x, _) => bind y (fun y => Ret (x, y))
+      | (_, Ret y) => bind x (fun x => Ret (x, y))
+      | (Call tree_x, Call tree_y) =>
+        Call (Tree.Node (joins_left tree_x y) (joins_left tree_x y (*joins_right tree_y x*)))
+      end
+    with join_right (x : t m A) (y : t m B) {struct y} : t m (A * B) :=
+      match (x, y) with
+      | (Ret x, _) => bind y (fun y => Ret (x, y))
+      | (_, Ret y) => bind x (fun x => Ret (x, y))
+      | (Call tree_x, Call tree_y) =>
+        Call (Tree.Node (*joins_left tree_x y*) (joins_right tree_y x) (joins_right tree_y x))
+      end
+    with joins_left (tree : Tree.t (Call.t m (t m A))) (next : t m B)
+      : Tree.t (Call.t m (t m (A * B))) :=
+      match tree with
+      | Tree.Leaf (Call.New c h) =>
+        Tree.Leaf (Call.New c (fun s H => join_left (h s H) next))
+      | Tree.Node tree1 tree2 =>
+        Tree.Node (joins_left tree1 next) (joins_left tree2 next)
+      end
+    with joins_right (tree : Tree.t (Call.t m (t m B))) (next : t m A)
+      : Tree.t (Call.t m (t m (A * B))) :=
+      match tree with
+      | Tree.Leaf (Call.New c h) =>
+        Tree.Leaf (Call.New c (fun s H => join_right next (h s H)))
+      | Tree.Node tree1 tree2 =>
+        Tree.Node (joins_right tree1 next) (joins_right tree2 next)
+      end
+    for join_left.
+
+  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
     let fix join_aux (y : t m B) {struct y} : t m (A * B) :=
       match y with
       | Ret y => bind x (fun x => Ret (x, y))
