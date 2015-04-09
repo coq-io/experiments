@@ -492,7 +492,7 @@ Module Lock.
   (*Compute (M.compile (m := m) ex2).
   Compute (ClosedM.compile (M.compile (m := m) ex2) false).*)
 
-  Lemma ex2_auto : Progress.of_C m ex2 false.
+  Lemma ex2_progress : Progress.of_C m ex2 false.
     now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 
@@ -504,7 +504,7 @@ Module Lock.
   (*Compute (M.compile (m := m) ex3).
   Compute (ClosedM.compile (M.compile (m := m) ex3) false).*)
 
-  Lemma ex3_auto : Progress.of_C m ex3 false.
+  Lemma ex3_progress : Progress.of_C m ex3 false.
     now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 
@@ -514,7 +514,93 @@ Module Lock.
   (*Compute (M.compile (m := m) ex4).
   Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
 
-  Lemma ex4_auto : Progress.of_C m ex4 false.
+  Lemma ex4_progress : Progress.of_C m ex4 false.
     now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Fixpoint ex5 (n : nat) : C.t E unit :=
+    match n with
+    | O => ret tt
+    | Datatypes.S n =>
+      let! _ : unit * unit := join (do! lock in unlock) (ex5 n) in
+      ret tt
+    end.
+
+  Lemma ex5_progress_0 : Progress.of_C m (ex5 0) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_1 : Progress.of_C m (ex5 1) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_2 : Progress.of_C m (ex5 2) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_3 : Progress.of_C m (ex5 3) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_4 : Progress.of_C m (ex5 4) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_5 : Progress.of_C m (ex5 5) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_6 : Progress.of_C m (ex5 6) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex5_progress_7 : Progress.of_C m (ex5 7) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Fixpoint ex6 (n : nat) : C.t E nat :=
+    match n with
+    | O => ret 0
+    | Datatypes.S n' =>
+      let! sv : nat * nat :=
+        join (ex6 n') (
+          do! lock in
+          let v := n in
+          do! unlock in
+          ret v) in
+      let (s, v) := sv in
+      ret (s + v)
+    end.
+
+  Lemma ex6_progress_0 : Progress.of_C m (ex6 0) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_1 : Progress.of_C m (ex6 1) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_2 : Progress.of_C m (ex6 2) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_3 : Progress.of_C m (ex6 3) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_4 : Progress.of_C m (ex6 4) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_5 : Progress.of_C m (ex6 5) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_6 : Progress.of_C m (ex6 6) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+  Qed.
+
+  Lemma ex6_progress_7 : Progress.of_C m (ex6 7) false.
+    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 End Lock.
