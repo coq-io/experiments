@@ -214,6 +214,79 @@ Module M.
     | Call tree => Call (binds tree)
     end.
 
+  Fixpoint rev {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (xy : t m (A * B)) : t m (B * A) :=
+    let fix revs (tree : Tree.t (Call.t m (t m (A * B))))
+      : Tree.t (Call.t m (t m (B * A))) :=
+      match tree with
+      | Tree.Leaf (Call.New c h) =>
+        Tree.Leaf (Call.New c (fun s H => rev (h s H)))
+      | Tree.Node tree1 tree2 => Tree.Node (revs tree1) (revs tree2)
+      end in
+    match xy with
+    | Ret xy => Ret (match xy with (x, y) => (y, x) end)
+    | Call tree => Call (revs tree)
+    end.
+
+  Fixpoint revs {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (tree : Tree.t (Call.t m (t m (A * B))))
+    : Tree.t (Call.t m (t m (B * A))) :=
+    match tree with
+    | Tree.Leaf (Call.New c h) =>
+      Tree.Leaf (Call.New c (fun s H => rev (h s H)))
+    | Tree.Node tree1 tree2 => Tree.Node (revs tree1) (revs tree2)
+    end.
+
+  Definition join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    : t m A -> t m B -> t m (A * B) :=
+    fix join_left (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
+      let fix joins_left (tree : Tree.t (Call.t m (t m A)))
+        : Tree.t (Call.t m (t m (A * B))) :=
+        match tree with
+        | Tree.Leaf (Call.New c h) =>
+          Tree.Leaf (Call.New c (fun s H => join_left (h s H) y))
+        | Tree.Node tree1 tree2 =>
+          Tree.Node (joins_left tree1) (joins_left tree2)
+        end in
+      let fix joins_right (tree : Tree.t (Call.t m (t m B)))
+        : Tree.t (Call.t m (t m (A * B))) :=
+        match tree with
+        | Tree.Leaf (Call.New c h) =>
+          Tree.Leaf (Call.New c (fun s H => join_right x (h s H)))
+        | Tree.Node tree1 tree2 =>
+          Tree.Node (joins_right tree1) (joins_right tree2)
+        end in
+      match (x, y) with
+      | (Ret x, _) => bind y (fun y => Ret (x, y))
+      | (_, Ret y) => bind x (fun x => Ret (x, y))
+      | (Call tree_x, Call tree_y) =>
+        Call (Tree.Node (joins_left tree_x) (joins_right tree_y))
+      end
+    with join_right (x : t m A) (y : t m B) {struct y} : t m (A * B) :=
+      let fix joins_left (tree : Tree.t (Call.t m (t m A)))
+        : Tree.t (Call.t m (t m (A * B))) :=
+        match tree with
+        | Tree.Leaf (Call.New c h) =>
+          Tree.Leaf (Call.New c (fun s H => join_left (h s H) y))
+        | Tree.Node tree1 tree2 =>
+          Tree.Node (joins_left tree1) (joins_left tree2)
+        end in
+      let fix joins_right (tree : Tree.t (Call.t m (t m B)))
+        : Tree.t (Call.t m (t m (A * B))) :=
+        match tree with
+        | Tree.Leaf (Call.New c h) =>
+          Tree.Leaf (Call.New c (fun s H => join_right x (h s H)))
+        | Tree.Node tree1 tree2 =>
+          Tree.Node (joins_right tree1) (joins_right tree2)
+        end in
+      match (x, y) with
+      | (Ret x, _) => bind y (fun y => Ret (x, y))
+      | (_, Ret y) => bind x (fun x => Ret (x, y))
+      | (Call tree_x, Call tree_y) =>
+        Call (Tree.Node (joins_left tree_x) (joins_right tree_y))
+      end
+    for join_left.
+
   Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
     let fix joins {A B : Type} (tree : Tree.t (Call.t m (t m A))) (next : t m B)
@@ -228,7 +301,8 @@ Module M.
     | Call tree_x =>
       match y with
       | Ret y => bind x (fun x => Ret (x, y))
-      | Call tree_y => Call (Tree.Node (joins tree_x y) (joins tree_y x))
+      | Call tree_y =>
+        Call (Tree.Node (joins tree_x y) (revs (joins tree_y x)))
       end
     end.
 
