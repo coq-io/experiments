@@ -214,29 +214,6 @@ Module M.
     | Call tree => Call (binds tree)
     end.
 
-  Fixpoint rev {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (xy : t m (A * B)) : t m (B * A) :=
-    let fix revs (tree : Tree.t (Call.t m (t m (A * B))))
-      : Tree.t (Call.t m (t m (B * A))) :=
-      match tree with
-      | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (Call.New c (fun s H => rev (h s H)))
-      | Tree.Node tree1 tree2 => Tree.Node (revs tree1) (revs tree2)
-      end in
-    match xy with
-    | Ret xy => Ret (match xy with (x, y) => (y, x) end)
-    | Call tree => Call (revs tree)
-    end.
-
-  Fixpoint revs {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (tree : Tree.t (Call.t m (t m (A * B))))
-    : Tree.t (Call.t m (t m (B * A))) :=
-    match tree with
-    | Tree.Leaf (Call.New c h) =>
-      Tree.Leaf (Call.New c (fun s H => rev (h s H)))
-    | Tree.Node tree1 tree2 => Tree.Node (revs tree1) (revs tree2)
-    end.
-
   Definition join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     : t m A -> t m B -> t m (A * B) :=
     fix join_left (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
@@ -286,89 +263,6 @@ Module M.
         Call (Tree.Node (joins_left tree_x) (joins_right tree_y))
       end.
 
-  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
-    let fix joins {A B : Type} (tree : Tree.t (Call.t m (t m A))) (next : t m B)
-      : Tree.t (Call.t m (t m (A * B))) :=
-      match tree with
-      | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (Call.New c (fun s H => join (h s H) next))
-      | Tree.Node tree1 tree2 => Tree.Node (joins tree1 next) (joins tree2 next)
-      end in
-    match x with
-    | Ret x => bind y (fun y => Ret (x, y))
-    | Call tree_x =>
-      match y with
-      | Ret y => bind x (fun x => Ret (x, y))
-      | Call tree_y =>
-        Call (Tree.Node (joins tree_x y) (revs (joins tree_y x)))
-      end
-    end.
-
-  Definition join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    : t m A -> t m B -> t m (A * B) :=
-    fix join_left (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
-      match (x, y) with
-      | (Ret x, _) => bind y (fun y => Ret (x, y))
-      | (_, Ret y) => bind x (fun x => Ret (x, y))
-      | (Call tree_x, Call tree_y) =>
-        Call (Tree.Node (joins_left tree_x y) (joins_left tree_x y (*joins_right tree_y x*)))
-      end
-    with join_right (x : t m A) (y : t m B) {struct y} : t m (A * B) :=
-      match (x, y) with
-      | (Ret x, _) => bind y (fun y => Ret (x, y))
-      | (_, Ret y) => bind x (fun x => Ret (x, y))
-      | (Call tree_x, Call tree_y) =>
-        Call (Tree.Node (*joins_left tree_x y*) (joins_right tree_y x) (joins_right tree_y x))
-      end
-    with joins_left (tree : Tree.t (Call.t m (t m A))) (next : t m B)
-      : Tree.t (Call.t m (t m (A * B))) :=
-      match tree with
-      | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (Call.New c (fun s H => join_left (h s H) next))
-      | Tree.Node tree1 tree2 =>
-        Tree.Node (joins_left tree1 next) (joins_left tree2 next)
-      end
-    with joins_right (tree : Tree.t (Call.t m (t m B))) (next : t m A)
-      : Tree.t (Call.t m (t m (A * B))) :=
-      match tree with
-      | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (Call.New c (fun s H => join_right next (h s H)))
-      | Tree.Node tree1 tree2 =>
-        Tree.Node (joins_right tree1 next) (joins_right tree2 next)
-      end
-    for join_left.
-
-  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
-    let fix join_aux (y : t m B) {struct y} : t m (A * B) :=
-      match y with
-      | Ret y => bind x (fun x => Ret (x, y))
-      | Call c_y h_y =>
-        match x with
-        | Ret x => bind y (fun y => Ret (x, y))
-        | Call c_x h_x =>
-          Choose
-          (Call c_x (fun s H => join (h_x s H) y))
-          (Call c_y (fun s H => join_aux (h_y s H)))
-        | Choose x1 x2 => Choose (join x1 y) (join x1 y)
-        end
-      | Choose y1 y2 => Choose (join_aux y1) (join_aux y2)
-      end in
-    match x with
-    | Ret x => bind y (fun y => Ret (x, y))
-    | Call c_x h_x =>
-      match y with
-      | Ret y => bind x (fun x => Ret (x, y))
-      | Call c_y h_y =>
-        Choose
-        (Call c_x (fun s H => join (h_x s H) y))
-        (Call c_y (fun s H => join_aux (h_y s H)))
-      | Choose y1 y2 => Choose (join_aux y1) (join_aux y2)
-      end
-    | Choose x1 x2 => Choose (join x1 y) (join x2 y)
-    end.
-
   Definition first {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (y : t m B) : t m (A + B).
   Admitted.
@@ -377,29 +271,46 @@ Module M.
     (x : C.t E A) : t m A :=
     match x with
     | C.Ret _ x => Ret x
-    | C.Call c => Call c (fun _ H => Ret (Model.answer m H))
+    | C.Call c =>
+      Call (Tree.Leaf (Call.New c (fun _ H => Ret (Model.answer m H))))
     | C.Let _ _ x f => bind (compile x) (fun x => compile (f x))
     | C.Join  _ _ x y => join (compile x) (compile y)
     | C.First  _ _ x y => first (compile x) (compile y)
     end.
 End M.
 
+Module ClosedCall.
+  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) := New {
+    c : Effect.command E;
+    s : S;
+    h : Model.condition m c s -> A }.
+  Arguments New {E S m A} _ _ _.
+  Arguments c {E S m A} _.
+  Arguments s {E S m A} _.
+  Arguments h {E S m A} _ _.
+End ClosedCall.
+
+(** We link the states. *)
 Module ClosedM.
   Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
   | Ret : A -> t m A
-  | Call : forall (c : Effect.command E) (s : S),
-    (Model.condition m c s -> t m A) -> t m A
-  | Choose : t m A -> t m A -> t m A.
+  | Call : Tree.t (ClosedCall.t m (t m A)) -> t m A.
   Arguments Ret {E S m A} _.
-  Arguments Call {E S m A} _ _ _.
-  Arguments Choose {E S m A} _ _.
+  Arguments Call {E S m A} _.
 
   Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (x : M.t m A) (s : S) : t m A :=
+    let fix compiles (tree : Tree.t (Call.t m (M.t m A)))
+      : Tree.t (ClosedCall.t m (t m A)) :=
+      match tree with
+      | Tree.Leaf (Call.New c h) =>
+        Tree.Leaf (ClosedCall.New c s (fun H =>
+          compile (h s H) (Model.state m H)))
+      | Tree.Node tree1 tree2 => Tree.Node (compiles tree1) (compiles tree2)
+      end in
     match x with
     | M.Ret x => Ret x
-    | M.Call c h => Call c s (fun H => compile (h s H) (Model.state m H))
-    | M.Choose x1 x2 => Choose (compile x1 s) (compile x2 s)
+    | M.Call tree => Call (compiles tree)
     end.
 
   Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
@@ -410,9 +321,7 @@ End ClosedM.
 Module Progress.
   Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     : ClosedM.t m A -> Prop :=
-  | Ret : forall x, t (ClosedM.Ret x)
-  | Call : forall c s h H, t (h H) -> t (ClosedM.Call c s h)
-  | Choose : forall x1 x2, t x1 -> t x2 -> t (ClosedM.Choose x1 x2).
+  | Ret : forall x, t (ClosedM.Ret x).
 
   Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
     (x : C.t E A) (s : S) : Prop :=
