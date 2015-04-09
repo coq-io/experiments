@@ -333,23 +333,10 @@ Module ClosedM.
         : Tree.t (ClosedCall.t m (ClosedM.t m A)) -> Prop :=
       | Leaf : forall c s h, (forall H, P (h H)) ->
         t P (Tree.Leaf (ClosedCall.New c s h))
-      | NodeLeft : forall tree1 tree2, t P tree1 -> t P tree2 ->
+      | Node : forall tree1 tree2, t P tree1 -> t P tree2 ->
         t P (Tree.Node tree1 tree2).
     End ForAll.
   End Tree.
-
-  (*Module NotStuck.
-    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      : ClosedM.t m A -> Prop :=
-    | Ret : forall x, t (ClosedM.Ret x)
-    | Call : forall tree, Tree.NotStuck.t tree -> t (ClosedM.Call tree).
-  End NotStuck.*)
-
-  (*Module Always.
-    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      (P : ClosedM.t m A -> Prop) : ClosedM.t m A -> Prop :=
-    | Ret : forall x, .
-  End Always.*)
 End ClosedM.
 
 Module Progress.
@@ -365,9 +352,45 @@ Module Progress.
     t (ClosedM.of_C m x s).
 End Progress.
 
-(*
 (** Try to solve automatically the [Progress.t] predicate. *)
 Module Solve.
+  Module Tree.
+    Fixpoint not_stuck {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      (dec : forall c s, option (Model.condition m c s))
+      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+      : option (ClosedM.Tree.NotStuck.t tree) :=
+      match tree with
+      | Tree.Leaf (ClosedCall.New c s h) =>
+        Option.bind (dec c s) (fun H =>
+        Some (ClosedM.Tree.NotStuck.Leaf c s h H))
+      | Tree.Node tree1 tree2 =>
+        match not_stuck dec tree1 with
+        | Some P => Some (ClosedM.Tree.NotStuck.NodeLeft tree1 tree2 P)
+        | None =>
+          match not_stuck dec tree2 with
+          | Some P => Some (ClosedM.Tree.NotStuck.NodeRight tree1 tree2 P)
+          | None => None
+          end
+        end
+      end.
+
+    Fixpoint for_all {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      {P : ClosedM.t m A -> Prop}
+      (dec : forall c s (h : Model.condition m c s -> ClosedM.t m A),
+        option (forall H, P (h H)))
+      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+      : option (ClosedM.Tree.ForAll.t P tree) :=
+      match tree with
+      | Tree.Leaf (ClosedCall.New c s h) =>
+        Option.bind (dec c s h) (fun p =>
+        Some (ClosedM.Tree.ForAll.Leaf P c s h p))
+      | Tree.Node tree1 tree2 =>
+        Option.bind (for_all dec tree1) (fun p1 =>
+        Option.bind (for_all dec tree2) (fun p2 =>
+        Some (ClosedM.Tree.ForAll.Node P tree1 tree2 p1 p2)))
+      end.
+  End Tree.
+
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
     : Progress.t x + (Effect.command E * S) :=
@@ -400,7 +423,7 @@ Module Solve.
     unfold is_progress.
     destruct (solve dec x) as [H |]; congruence.
   Qed.
-End Solve.*)
+End Solve.
 
 Module Lock.
   Definition S := bool.
