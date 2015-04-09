@@ -365,6 +365,7 @@ Module Progress.
     t (ClosedM.of_C m x s).
 End Progress.
 
+(*
 (** Try to solve automatically the [Progress.t] predicate. *)
 Module Solve.
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
@@ -399,7 +400,7 @@ Module Solve.
     unfold is_progress.
     destruct (solve dec x) as [H |]; congruence.
   Qed.
-End Solve.
+End Solve.*)
 
 Module Lock.
   Definition S := bool.
@@ -448,10 +449,10 @@ Module Lock.
     do! lock in
     unlock.
 
-  (*Compute (M.compile (m := m) ex1).
-  Compute (ClosedM.compile (M.compile (m := m) ex1) false).*)
+  Compute (M.compile (m := m) ex1).
+  Compute (ClosedM.compile (M.compile (m := m) ex1) false).
 
-  Lemma ex1_progress : Progress.of_C m ex1 false.
+  (*Lemma ex1_progress : Progress.of_C m ex1 false.
     apply Progress.Call with (H := Condition.Lock); simpl.
     apply Progress.Call with (H := Condition.Unlock); simpl.
     apply Progress.Ret.
@@ -459,31 +460,31 @@ Module Lock.
 
   Lemma ex1_auto : Progress.of_C m ex1 false.
     now apply Solve.is_progress_ok with (dec := dec).
-  Qed.
+  Qed.*)
 
   Definition ex2 : C.t E (nat * nat) :=
     join (ret 3) (ret 4).
 
-  (*Compute (M.compile (m := m) ex2).
-  Compute (ClosedM.compile (M.compile (m := m) ex2) false).*)
+  Compute (M.compile (m := m) ex2).
+  Compute (ClosedM.compile (M.compile (m := m) ex2) false).
 
-  Lemma ex2_progress : Progress.of_C m ex2 false.
+  (*Lemma ex2_progress : Progress.of_C m ex2 false.
     apply Progress.Ret.
   Qed.
 
   Lemma ex2_auto : Progress.of_C m ex2 false.
     now apply Solve.is_progress_ok with (dec := dec).
-  Qed.
+  Qed.*)
 
   Definition ex3 : C.t E (nat * unit) :=
     join (ret 3) (
       do! lock in
       unlock).
 
-  (*Compute (M.compile (m := m) ex3).
-  Compute (ClosedM.compile (M.compile (m := m) ex3) false).*)
+  Compute (M.compile (m := m) ex3).
+  Compute (ClosedM.compile (M.compile (m := m) ex3) false).
 
-  Lemma ex3_progress : Progress.of_C m ex3 false.
+  (*Lemma ex3_progress : Progress.of_C m ex3 false.
     apply Progress.Call with (H := Condition.Lock); simpl.
     apply Progress.Call with (H := Condition.Unlock); simpl.
     apply Progress.Ret.
@@ -491,16 +492,16 @@ Module Lock.
 
   Lemma ex3_auto : Progress.of_C m ex3 false.
     now apply Solve.is_progress_ok with (dec := dec).
-  Qed.
+  Qed.*)
 
   Definition ex4 : C.t E (unit * unit) :=
     join (do! lock in unlock) (do! lock in unlock).
 
-  (*Compute (M.compile (m := m) ex4).
-  Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
+  Compute (M.compile (m := m) ex4).
+  Compute (ClosedM.compile (M.compile (m := m) ex4) false).
 
-  Lemma ex4_auto : Progress.of_C m ex4 false.
+  (*Lemma ex4_auto : Progress.of_C m ex4 false.
     Compute Solve.solve dec (ClosedM.of_C m ex4 false).
     now apply Solve.is_progress_ok with (dec := dec).
-  Qed.
+  Qed.*)
 End Lock.
