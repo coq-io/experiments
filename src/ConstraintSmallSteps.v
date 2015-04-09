@@ -1,4 +1,5 @@
 (** A small-steps semantics for computations with constraints on the model. *)
+Require Import FunctionNinjas.All.
 Require Import ErrorHandlers.All.
 Require Import Io.All.
 
@@ -169,22 +170,48 @@ Module Model.
   Arguments state {E S} _ {c s} _.
 End Model.
 
+Module Tree.
+  Inductive t (A : Type) : Type :=
+  | Leaf : A -> t A
+  | Node : t A -> t A -> t A.
+  Arguments Leaf {A} _.
+  Arguments Node {A} _ _.
+
+  Fixpoint map {A B : Type} (f : A -> B) (tree : t A) : t B :=
+    match tree with
+    | Leaf x => Leaf (f x)
+    | Node tree1 tree2 => Node (map f tree1) (map f tree2)
+    end.
+End Tree.
+
+Module Call.
+  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) := New {
+    c : Effect.command E;
+    h : forall s, Model.condition m c s -> A }.
+  Arguments New {E S m A} _ _.
+  Arguments c {E S m A} _.
+  Arguments h {E S m A} _ {s} _.
+End Call.
+
 Module M.
   Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
   | Ret : A -> t m A
-  | Call : forall (c : Effect.command E),
-    (forall s, Model.condition m c s -> t m A) -> t m A
-  | Choose : t m A -> t m A -> t m A.
+  | Call : Tree.t (Call.t m (t m A)) -> t m A.
   Arguments Ret {E S m A} _.
-  Arguments Call {E S m A} _ _.
-  Arguments Choose {E S m A} _ _.
+  Arguments Call {E S m A} _.
 
   Fixpoint bind {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (f : A -> t m B) : t m B :=
+    let fix binds (tree : Tree.t (Call.t m (t m A)))
+      : Tree.t (Call.t m (t m B)) :=
+      match tree with
+      | Tree.Leaf (Call.New c h) =>
+        Tree.Leaf (Call.New c (fun s H => bind (h s H) f))
+      | Tree.Node tree1 tree2 => Tree.Node (binds tree1) (binds tree2)
+      end in
     match x with
     | Ret x => f x
-    | Call c h => Call c (fun s H => bind (h s H) f)
-    | Choose x1 x2 => Choose (bind x1 f) (bind x2 f)
+    | Call tree => Call (binds tree)
     end.
 
   Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
