@@ -330,7 +330,8 @@ Module ClosedM.
       Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
         (P : ClosedM.t m A -> Prop)
         : Tree.t (ClosedCall.t m (ClosedM.t m A)) -> Prop :=
-      | Leaf : forall c s h, P h -> t P (Tree.Leaf (ClosedCall.New c s h))
+      | Leaf : forall c s h, (Model.condition m c s -> P h) ->
+        t P (Tree.Leaf (ClosedCall.New c s h))
       | Node : forall tree1 tree2, t P tree1 -> t P tree2 ->
         t P (Tree.Node tree1 tree2).
     End ForAll.
@@ -374,40 +375,53 @@ Module Solve.
   End Tree.
 
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-    (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
-    : option (Progress.t x) :=
+    (dec : forall c s, option (Model.condition m c s))
+    (dec_not : forall c s, option (~ Model.condition m c s))
+    (x : ClosedM.t m A)
+    : Progress.t x + Tree.t (ClosedCall.t m (ClosedM.t m A)) :=
     let fix for_all (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
-      : option (ClosedM.Tree.ForAll.t Progress.t tree) :=
+      : ClosedM.Tree.ForAll.t Progress.t tree + _ :=
       match tree with
       | Tree.Leaf (ClosedCall.New c s h) =>
-        Option.bind (solve dec h) (fun H =>
-        Some (ClosedM.Tree.ForAll.Leaf Progress.t c s h H))
+        match dec_not c s with
+        | Some H_not =>
+          inl (ClosedM.Tree.ForAll.Leaf Progress.t c s h (fun H =>
+            match H_not H with end))
+        | None =>
+          Sum.bind (solve dec dec_not h) (fun H =>
+          inl (ClosedM.Tree.ForAll.Leaf Progress.t c s h (fun _ => H)))
+        end
       | Tree.Node tree1 tree2 =>
-        Option.bind (for_all tree1) (fun H1 =>
-        Option.bind (for_all tree2) (fun H2 =>
-        Some (ClosedM.Tree.ForAll.Node Progress.t tree1 tree2 H1 H2)))
+        Sum.bind (for_all tree1) (fun H1 =>
+        Sum.bind (for_all tree2) (fun H2 =>
+        inl (ClosedM.Tree.ForAll.Node Progress.t tree1 tree2 H1 H2)))
       end in
     match x with
-    | ClosedM.Ret x => Some (Progress.Ret x)
+    | ClosedM.Ret x => inl (Progress.Ret x)
     | ClosedM.Call tree =>
-      Option.bind (Tree.not_stuck dec tree) (fun H_not_stuck =>
-      Option.bind (for_all tree) (fun H_for_all =>
-      Some (Progress.Call tree H_not_stuck H_for_all)))
+      match Tree.not_stuck dec tree with
+      | Some H_not_stuck =>
+        Sum.bind (for_all tree) (fun H_for_all =>
+        inl (Progress.Call tree H_not_stuck H_for_all))
+      | None => inr tree
+      end
     end.
 
   Definition is_progress {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-    (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
-    : bool :=
-    match solve dec x with
-    | Some _ => true
-    | None => false
+    (dec : forall c s, option (Model.condition m c s))
+    (dec_not : forall c s, option (~ Model.condition m c s))
+    (x : ClosedM.t m A) : bool :=
+    match solve dec dec_not x with
+    | inl _ => true
+    | inr _ => false
     end.
 
   Lemma is_progress_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-    (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
-    : is_progress dec x = true -> Progress.t x.
+    (dec : forall c s, option (Model.condition m c s))
+    (dec_not : forall c s, option (~ Model.condition m c s))
+    (x : ClosedM.t m A) : is_progress dec dec_not x = true -> Progress.t x.
     unfold is_progress.
-    destruct (solve dec x) as [H |]; congruence.
+    destruct (solve dec dec_not x) as [H |]; congruence.
   Qed.
 End Solve.
 
@@ -447,10 +461,18 @@ Module Lock.
   Definition m : Model.t E S :=
     Model.New Condition.t answer state.
 
-  Definition dec (c : Effect.command E) (s : S) : option (Model.condition m c s).
+  Definition dec (c : Effect.command E) (s : S)
+    : option (Model.condition m c s).
     destruct c; destruct s;
       try (exact (Some Condition.Lock)); try (exact (Some Condition.Unlock));
       exact None.
+  Defined.
+
+  Definition dec_not (c : Effect.command E) (s : S)
+    : option (~ Model.condition m c s).
+    destruct c; destruct s;
+      [apply Some | apply None | apply None | apply Some];
+      intro; inversion H.
   Defined.
 
   Definition ex1 : C.t E unit :=
@@ -461,7 +483,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex1) false).*)
 
   Lemma ex1_progress : Progress.of_C m ex1 false.
-    now apply Solve.is_progress_ok with (dec := dec).
+    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 
   Definition ex2 : C.t E (nat * nat) :=
@@ -471,7 +493,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex2) false).*)
 
   Lemma ex2_auto : Progress.of_C m ex2 false.
-    now apply Solve.is_progress_ok with (dec := dec).
+    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 
   Definition ex3 : C.t E (nat * unit) :=
@@ -483,7 +505,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex3) false).*)
 
   Lemma ex3_auto : Progress.of_C m ex3 false.
-    now apply Solve.is_progress_ok with (dec := dec).
+    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 
   Definition ex4 : C.t E (unit * unit) :=
@@ -493,7 +515,6 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
 
   Lemma ex4_auto : Progress.of_C m ex4 false.
-    Compute Solve.solve dec (ClosedM.of_C m ex4 false).
-    now apply Solve.is_progress_ok with (dec := dec).
+    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
   Qed.
 End Lock.
