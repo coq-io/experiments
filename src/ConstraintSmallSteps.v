@@ -249,6 +249,10 @@ Module ClosedM.
     | M.Call c h => Call c s (fun H => compile (h s H) (Model.state m H))
     | M.Choose x1 x2 => Choose (compile x1 s) (compile x2 s)
     end.
+
+  Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+    (x : C.t E A) (s : S) : t m A :=
+    compile (M.compile x) s.
 End ClosedM.
 
 Module Progress.
@@ -260,7 +264,7 @@ Module Progress.
 
   Definition of_C {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
     (x : C.t E A) (s : S) : Prop :=
-    t (ClosedM.compile (M.compile (m := m) x) s).
+    t (ClosedM.of_C m x s).
 End Progress.
 
 (** Try to solve automatically the [Progress.t] predicate. *)
@@ -279,6 +283,21 @@ Module Solve.
       Option.bind (solve dec x2) (fun p_x2 =>
       Some (Progress.Choose x1 x2 p_x1 p_x2)))
     end.
+
+  Definition is_progress {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
+    : bool :=
+    match solve dec x with
+    | Some _ => true
+    | None => false
+    end.
+
+  Lemma is_progress_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    (dec : forall c s, option (Model.condition m c s)) (x : ClosedM.t m A)
+    : is_progress dec x = true -> Progress.t x.
+    unfold is_progress.
+    destruct (solve dec x) as [H |]; congruence.
+  Qed.
 End Solve.
 
 Module Lock.
@@ -318,12 +337,18 @@ Module Lock.
   Definition m : Model.t E S :=
     Model.New Condition.t answer state.
 
-  (*Definition ex1 : C.t E unit :=
+  Definition dec (c : Effect.command E) (s : S) : option (Model.condition m c s).
+    destruct c; destruct s;
+      try (exact (Some Condition.Lock)); try (exact (Some Condition.Unlock));
+      exact None.
+  Defined.
+
+  Definition ex1 : C.t E unit :=
     do! lock in
     unlock.
 
-  Compute (M.compile (m := m) ex1).
-  Compute (ClosedM.compile (M.compile (m := m) ex1) false).
+  (*Compute (M.compile (m := m) ex1).
+  Compute (ClosedM.compile (M.compile (m := m) ex1) false).*)
 
   Lemma ex1_progress : Progress.of_C m ex1 false.
     apply Progress.Call with (H := Condition.Lock); simpl.
@@ -331,14 +356,22 @@ Module Lock.
     apply Progress.Ret.
   Qed.
 
+  Lemma ex1_auto : Progress.of_C m ex1 false.
+    now apply Solve.is_progress_ok with (dec := dec).
+  Qed.
+
   Definition ex2 : C.t E (nat * nat) :=
     join (ret 3) (ret 4).
 
-  Compute (M.compile (m := m) ex2).
-  Compute (ClosedM.compile (M.compile (m := m) ex2) false).
+  (*Compute (M.compile (m := m) ex2).
+  Compute (ClosedM.compile (M.compile (m := m) ex2) false).*)
 
   Lemma ex2_progress : Progress.of_C m ex2 false.
     apply Progress.Ret.
+  Qed.
+
+  Lemma ex2_auto : Progress.of_C m ex2 false.
+    now apply Solve.is_progress_ok with (dec := dec).
   Qed.
 
   Definition ex3 : C.t E (nat * unit) :=
@@ -346,8 +379,8 @@ Module Lock.
       do! lock in
       unlock).
 
-  Compute (M.compile (m := m) ex3).
-  Compute (ClosedM.compile (M.compile (m := m) ex3) false).
+  (*Compute (M.compile (m := m) ex3).
+  Compute (ClosedM.compile (M.compile (m := m) ex3) false).*)
 
   Lemma ex3_progress : Progress.of_C m ex3 false.
     apply Progress.Call with (H := Condition.Lock); simpl.
@@ -355,9 +388,17 @@ Module Lock.
     apply Progress.Ret.
   Qed.
 
+  Lemma ex3_auto : Progress.of_C m ex3 false.
+    now apply Solve.is_progress_ok with (dec := dec).
+  Qed.
+
   Definition ex4 : C.t E (unit * unit) :=
     join (do! lock in unlock) (do! lock in unlock).
 
-  Compute (M.compile (m := m) ex4).
+  (*Compute (M.compile (m := m) ex4).
   Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
+
+  Lemma ex4_auto : Progress.of_C m ex4 false.
+    now apply Solve.is_progress_ok with (dec := dec).
+  Qed.
 End Lock.
