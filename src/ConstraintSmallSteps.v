@@ -9,6 +9,17 @@ Module Effect.
     answer : command -> Type }.
 End Effect.
 
+Module Model.
+  Record t (E : Effect.t) (S : Type) := New {
+    condition : Effect.command E -> S -> Prop;
+    answer : forall c, S -> Effect.answer E c;
+    state : Effect.command E -> S -> S }.
+  Arguments New {E S} _ _ _.
+  Arguments condition {E S} _ _ _.
+  Arguments answer {E S} _ _ _.
+  Arguments state {E S} _ _ _.
+End Model.
+
 Module C.
   (** The description of a computation. *)
   Inductive t (E : Effect.t) : Type -> Type :=
@@ -54,146 +65,6 @@ Module C.
       (Let _ _ X (fun (_ : unit) => Y))
       (at level 200, X at level 100, Y at level 200).
   End Notations.
-End C.
-
-Module Model.
-  Record t (E : Effect.t) (S : Type) := New {
-    condition : Effect.command E -> S -> Prop;
-    answer : forall c, S -> Effect.answer E c;
-    state : Effect.command E -> S -> S }.
-  Arguments New {E S} _ _ _.
-  Arguments condition {E S} _ _ _.
-  Arguments answer {E S} _ _ _.
-  Arguments state {E S} _ _ _.
-End Model.
-
-Module Step.
-  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
-    : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
-  | Call : forall (c : Effect.command E) (s : S),
-    Model.condition m c s ->
-    t m (C.Call c) s (C.Ret _ (Model.answer m c s)) (Model.state m c s)
-  | LetLeft : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
-    (x' : C.t E A) (s s' : S),
-    t m x s x' s' ->
-    t m (C.Let _ _ x f) s (C.Let _ _ x' f) s'
-  | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B) (v_x : A)
-    (s : S),
-    t m (C.Let _ _ (C.Ret _ v_x) f) s (f v_x) s
-  | JoinLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
-    (s s' : S),
-    t m x s x' s' ->
-    t m (C.Join _ _ x y) s (C.Join _ _ x' y) s'
-  | JoinRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
-    (s s' : S),
-    t m y s y' s' ->
-    t m (C.Join _ _ x y) s (C.Join _ _ x y') s'
-  | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
-    t m (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s.
-
-  (** If the condition is always true then the evaluation is non-blocking. *)
-  Fixpoint non_blocking {E : Effect.t} {S : Type} (m : Model.t E S)
-    (progress : forall c s, Model.condition m c s)
-    {A : Type} (x : C.t E A) (s : S)
-    {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
-      (exists x' : C.t E A, exists s' : S, t m x s x' s').
-    destruct x as [A v_x | c | A B x f | A B x y].
-    - left.
-      now exists v_x.
-    - right.
-      exists (C.Ret _ (Model.answer m c s)).
-      exists (Model.state m c s).
-      apply Call.
-      apply progress.
-    - right.
-      destruct (non_blocking _ _ m progress _ x s) as [H | H].
-      + destruct H as [v_x H]; rewrite H.
-        exists (f v_x).
-        exists s.
-        now apply Let.
-      + destruct H as [x' H]; destruct H as [s' H].
-        exists (C.Let _ _ x' f).
-        exists s'.
-        now apply LetLeft.
-    - right.
-      destruct (non_blocking _ _ m progress _ x s) as [H_x | H_x].
-      + destruct H_x as [v_x H_x].
-        destruct (non_blocking _ _ m progress _ y s) as [H_y | H_y].
-        * destruct H_y as [v_y H_y].
-          exists (C.Ret _ (v_x, v_y)).
-          exists s.
-          rewrite H_x; rewrite H_y.
-          apply Join.
-        * destruct H_y as [y' H_y]; destruct H_y as [s' H_y].
-          exists (C.Join _ _ x y').
-          exists s'.
-          now apply JoinRight.
-      + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
-        exists (C.Join _ _ x' y).
-        exists s'.
-        now apply JoinLeft.
-  Qed.
-End Step.
-
-Module Steps.
-  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
-    : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
-  | Nil : forall (A : Type) (x : C.t E A) (s : S), t m x s x s
-  | Cons : forall (A : Type) (x x' x'': C.t E A) (s s' s'': S),
-    Step.t m x s x' s' -> t m x' s' x'' s'' -> t m x s x'' s''.
-End Steps.
-
-Module NotStuck.
-  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-    : C.t E A -> S -> Prop :=
-  | Value : forall (x : A) (s : S), t m (C.Ret _ x) s
-  | Step : forall (x x' : C.t E A) (s s' : S), Step.t m x s x' s' -> t m x s.
-End NotStuck.
-
-Module DeadLockFree.
-  Definition t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-    (x : C.t E A) (s : S) : Prop :=
-    forall (x' : C.t E A) (s' : S), Steps.t m x s x' s' -> NotStuck.t m x' s'.
-End DeadLockFree.
-
-Module Call.
-  Record t {E : Effect.t} {S : Type} (m : Model.t E S) (T : Type) := New {
-    c : Effect.command E;
-    h : S -> T }.
-  Arguments New {E S m T} _ _.
-  Arguments c {E S m T} _.
-  Arguments h {E S m T} _ _.
-End Call.
-
-Module M.
-  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
-  | Ret : A -> t m A
-  | Call : Effect.command E -> (S -> t m A) -> t m A
-  | Choose : t m A -> t m A -> t m A.
-  Arguments Ret {E S m A} _.
-  Arguments Call {E S m A} _ _.
-  Arguments Choose {E S m A} _ _.
-
-  (** If a computation is not stuck. *)
-  Module NotStuck.
-    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      : S -> M.t m A -> Prop :=
-    | Ret : forall s x, t s (M.Ret x)
-    | Call : forall s c h, Model.condition m c s -> t s (M.Call c h)
-    | ChooseLeft : forall s x1 x2, t s x1 -> t s (M.Choose x1 x2)
-    | ChooseRight : forall s x1 x2, t s x2 -> t s (M.Choose x1 x2).
-  End NotStuck.
-
-  Module DeadLockFree.
-    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      : M.t m A -> Prop :=
-    | Ret : forall x, t (M.Ret x)
-    | Call : forall c h,
-      (forall s, Model.condition m c s ->
-        NotStuck.t s (h (Model.state m c s)) /\ t (h (Model.state m c s))) ->
-      t (M.Call c h)
-    | Choose : forall x1 x2, t x1 -> t x2 -> t (M.Choose x1 x2).
-  End DeadLockFree.
 
   Module Step.
     Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
@@ -218,7 +89,103 @@ Module M.
       t m (C.Join _ _ x y) s (C.Join _ _ x y') s'
     | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
       t m (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s.
+
+    (** If the condition is always true then the evaluation is non-blocking. *)
+    Fixpoint non_blocking {E : Effect.t} {S : Type} (m : Model.t E S)
+      (progress : forall c s, Model.condition m c s)
+      {A : Type} (x : C.t E A) (s : S)
+      {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
+        (exists x' : C.t E A, exists s' : S, t m x s x' s').
+      destruct x as [A v_x | c | A B x f | A B x y].
+      - left.
+        now exists v_x.
+      - right.
+        exists (C.Ret _ (Model.answer m c s)).
+        exists (Model.state m c s).
+        apply Call.
+        apply progress.
+      - right.
+        destruct (non_blocking _ _ m progress _ x s) as [H | H].
+        + destruct H as [v_x H]; rewrite H.
+          exists (f v_x).
+          exists s.
+          now apply Let.
+        + destruct H as [x' H]; destruct H as [s' H].
+          exists (C.Let _ _ x' f).
+          exists s'.
+          now apply LetLeft.
+      - right.
+        destruct (non_blocking _ _ m progress _ x s) as [H_x | H_x].
+        + destruct H_x as [v_x H_x].
+          destruct (non_blocking _ _ m progress _ y s) as [H_y | H_y].
+          * destruct H_y as [v_y H_y].
+            exists (C.Ret _ (v_x, v_y)).
+            exists s.
+            rewrite H_x; rewrite H_y.
+            apply Join.
+          * destruct H_y as [y' H_y]; destruct H_y as [s' H_y].
+            exists (C.Join _ _ x y').
+            exists s'.
+            now apply JoinRight.
+        + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
+          exists (C.Join _ _ x' y).
+          exists s'.
+          now apply JoinLeft.
+    Qed.
   End Step.
+
+  Module Steps.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
+      : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
+    | Nil : forall (A : Type) (x : C.t E A) (s : S), t m x s x s
+    | Cons : forall (A : Type) (x x' x'': C.t E A) (s s' s'': S),
+      Step.t m x s x' s' -> t m x' s' x'' s'' -> t m x s x'' s''.
+  End Steps.
+
+  Module NotStuck.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      : C.t E A -> S -> Prop :=
+    | Value : forall (x : A) (s : S), t m (C.Ret _ x) s
+    | Step : forall (x x' : C.t E A) (s s' : S), Step.t m x s x' s' -> t m x s.
+  End NotStuck.
+
+  Module DeadLockFree.
+    Definition t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      (x : C.t E A) (s : S) : Prop :=
+      forall (x' : C.t E A) (s' : S), Steps.t m x s x' s' -> NotStuck.t m x' s'.
+  End DeadLockFree.
+End C.
+
+Module M.
+  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
+  | Ret : A -> t m A
+  | Call : Effect.command E -> (S -> t m A) -> t m A
+  | Choose : t m A -> t m A -> t m A.
+  Arguments Ret {E S m A} _.
+  Arguments Call {E S m A} _ _.
+  Arguments Choose {E S m A} _ _.
+
+  (** If a computation is not stuck. *)
+  Module NotStuck.
+    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      : M.t m A -> S -> Prop :=
+    | Ret : forall x s, t (M.Ret x) s
+    | Call : forall c h s, Model.condition m c s -> t (M.Call c h) s
+    | ChooseLeft : forall x1 x2 s, t x1 s -> t (M.Choose x1 x2) s
+    | ChooseRight : forall x1 x2 s, t x2 s -> t (M.Choose x1 x2) s.
+  End NotStuck.
+
+  Module DeadLockFree.
+    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      : M.t m A -> S -> Prop :=
+    | Ret : forall x s, t (M.Ret x) s
+    | Call : forall c h s,
+      (Model.condition m c s ->
+        let s := Model.state m c s in
+        NotStuck.t (h s) s /\ t (h s) s) ->
+      t (M.Call c h) s
+    | Choose : forall x1 x2 s, t x1 s -> t x2 s -> t (M.Choose x1 x2) s.
+  End DeadLockFree.
 
   Fixpoint bind {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (f : A -> t m B) : t m B :=
@@ -248,14 +215,17 @@ Module M.
     | Choose x1 x2 => Choose (join x1 y k) (join x2 y k)
     end.
 
-  Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+  Fixpoint compile {E : Effect.t} {S : Type} (m : Model.t E S) {A B : Type}
     (x : C.t E A) : (A -> t m B) -> t m B :=
     match x with
     | C.Ret _ x => fun k => k x
     | C.Call c => fun k => Call c (fun s => k (Model.answer m c s))
-    | C.Let _ _ x f => fun k => compile x (fun x => compile (f x) k)
-    | C.Join  _ _ x y => fun k => join (compile x Ret) (compile y Ret) k
+    | C.Let _ _ x f => fun k => compile m x (fun x => compile m (f x) k)
+    | C.Join  _ _ x y => fun k => join (compile m x Ret) (compile m y Ret) k
     end.
+
+  Lemma ok {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type} (x : C.t E A)
+    (s : S) : DeadLockFree.t (compile m x Ret) s -> C.DeadLockFree.t m x s.
 End M.
 
 Module ClosedCall.
