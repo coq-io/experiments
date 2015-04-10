@@ -45,32 +45,33 @@ Module C.
       t m s (C.Join (C.Ret x) (C.Ret y) z) s (z (x, y)).
   End Step.
 
-  Module Steps.
-    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
-      : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
-    | Nil : forall (A : Type) (x : C.t E A) (s : S), t m x s x s
-    | Cons : forall (A : Type) (x x' x'': C.t E A) (s s' s'': S),
-      Step.t m x s x' s' -> t m x' s' x'' s'' -> t m x s x'' s''.
-  End Steps.
-
   Module NotStuck.
     Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-      : C.t E A -> S -> Prop :=
-    | Value : forall (x : A) (s : S), t m (C.Ret _ x) s
-    | Step : forall (x x' : C.t E A) (s s' : S), Step.t m x s x' s' -> t m x s.
+      : S -> C.t E A -> Prop :=
+    | Value : forall s x, t m s (C.Ret x)
+    | Step : forall s x s' x', Step.t m s x s' x' -> t m s x.
   End NotStuck.
 
   Module DeadLockFree.
-    Definition t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-      (x : C.t E A) (s : S) : Prop :=
-      forall (x' : C.t E A) (s' : S), Steps.t m x s x' s' -> NotStuck.t m x' s'.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      (s : S) (x : C.t E A) : Prop :=
+    | New : NotStuck.t m s x ->
+      (forall s' x', Step.t m s x s' x' -> t m s' x') -> t m s x.
   End DeadLockFree.
 
-  Module Trace.
-    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
-    | Ret : A -> t m A
-    | Call : forall c h, (forall s, Model.condition m c s -> t m (h s)) -> t m A.
-  End Trace.
+  (*Module DeadLockFree.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      : S -> C.t E A -> Prop :=
+    | Ret : forall s x, t m s (C.Ret x)
+    | Call : forall s c h,
+      (Model.condition m c s ->
+        NotStuck.t m (Model.state m c s) (h (Model.answer m c s)) /\
+        t m (Model.state m c s) (h (Model.answer m c s))) ->
+      t m s (C.Call c h)
+    | Join : .
+      (s : S) (x : C.t E A) : Prop :=
+      forall (x' : C.t E A) (s' : S), Steps.t m x s x' s' -> NotStuck.t m x' s'.
+  End DeadLockFree.*)
 End C.
 
 Module M.
