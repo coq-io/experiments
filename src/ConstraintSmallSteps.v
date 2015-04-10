@@ -156,48 +156,38 @@ Module M.
     | Choose x1 x2 => Choose (bind x1 f) (bind x2 f)
     end.
 
-  Fixpoint join_aux {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (join : S -> t m B -> t m (A * B)) (c_x : Effect.command E)
-    (x : t m A) (y : t m B) : t m (A * B) :=
+  Fixpoint join_aux {E : Effect.t} {S : Type} {m : Model.t E S} {B C : Type}
+    (join : S -> t m B -> t m C) (c_x : Effect.command E)
+    (y : t m B) (k : B -> t m C) : t m C :=
     match y with
-    | Ret y => bind x (fun x => Ret (x, y))
+    | Ret y => k y
     | Call c_y h_y =>
       Choose
         (Call c_x (fun s => join s y))
-        (Call c_y (fun s => join_aux join c_x x (h_y s)))
-    | Choose y1 y2 => Choose (join_aux join c_x x y1) (join_aux join c_x x y2)
+        (Call c_y (fun s => join_aux join c_x (h_y s) k))
+    | Choose y1 y2 => Choose (join_aux join c_x y1 k) (join_aux join c_x y2 k)
     end.
 
-  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
+  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B C : Type}
+    (x : t m A) (y : t m B) (k : A * B -> t m C) : t m C :=
     match x with
-    | Ret x => bind y (fun y => Ret (x, y))
-    | Call c_x h_x =>
-      let join s := join (h_x s) in
-      match y with
-      | Ret y => bind x (fun x => Ret (x, y))
-      | Call c_y h_y =>
-        Choose
-          (Call c_x (fun s => join s y))
-          (Call c_y (fun s => join_aux join c_x x (h_y s)))
-      | Choose y1 y2 => Choose (join_aux join c_x x y1) (join_aux join c_x x y2)
-      end
-    | Choose x1 x2 => Choose (join x1 y) (join x2 y)
+    | Ret x => bind y (fun y => k (x, y))
+    | Call c_x h_x => join_aux (fun s y => join (h_x s) y k) c_x y (fun y => bind x (fun x => k (x, y)))
+    | Choose x1 x2 => Choose (join x1 y k) (join x2 y k)
     end.
 
-  Definition first {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    (x : t m A) (y : t m B) : t m (A + B).
+  Definition first {E : Effect.t} {S : Type} {m : Model.t E S} {A B C : Type}
+    (x : t m A) (y : t m B) (k : A + B -> t m C) : t m C.
   Admitted.
 
-  Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-    (x : C.t E A) : t m A :=
+  Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (x : C.t E A) : (A -> t m B) -> t m B :=
     match x with
-    | C.Ret _ x => Ret x
-    | C.Call c =>
-      Call (Tree.Leaf (Call.New c (fun s => Ret (Model.answer m c s))))
-    | C.Let _ _ x f => bind (compile x) (fun x => compile (f x))
-    | C.Join  _ _ x y => join (compile x) (compile y)
-    | C.First  _ _ x y => first (compile x) (compile y)
+    | C.Ret _ x => fun k => k x
+    | C.Call c => fun k => Call c (fun s => k (Model.answer m c s))
+    | C.Let _ _ x f => fun k => compile x (fun x => compile (f x) k)
+    | C.Join  _ _ x y => fun k => join (compile x Ret) (compile y Ret) k
+    | C.First  _ _ x y => fun k => first (compile x Ret) (compile y Ret) k
     end.
 End M.
 
