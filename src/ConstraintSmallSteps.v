@@ -2,7 +2,59 @@
 Require Import Coq.Bool.Bool.
 Require Import FunctionNinjas.All.
 Require Import ErrorHandlers.All.
-Require Import Io.All.
+
+Module Effect.
+  Record t := New {
+    command : Type;
+    answer : command -> Type }.
+End Effect.
+
+Module C.
+  (** The description of a computation. *)
+  Inductive t (E : Effect.t) : Type -> Type :=
+  | Ret : forall {A : Type} (x : A), t E A
+  | Call : forall (command : Effect.command E), t E (Effect.answer E command)
+  | Let : forall (A B : Type), t E A -> (A -> t E B) -> t E B
+  | Join : forall {A B : Type}, t E A -> t E B -> t E (A * B).
+
+  (** The implicit arguments so that the `match` command works both with
+      Coq 8.4 and Coq 8.5. *)
+  Arguments Call {E} _.
+  Arguments Let {E} _ _ _ _.
+  Arguments Join {E} _ _ _ _.
+
+  (** A nicer notation for `Ret`. *)
+  Definition ret {E : Effect.t} {A : Type} (x : A) : t E A :=
+    Ret E x.
+
+  (** A nicer notation for `Call`. *)
+  Definition call (E : Effect.t) (command : Effect.command E)
+    : t E (Effect.answer E command) :=
+    Call (E := E) command.
+
+  (** A nicer notation for `Join`. *)
+  Definition join {E : Effect.t} {A B : Type} (x : t E A) (y : t E B)
+    : t E (A * B) :=
+    Join _ _ x y.
+
+  (** Some optional notations. *)
+  Module Notations.
+    (** A nicer notation for `Let`. *)
+    Notation "'let!' x ':=' X 'in' Y" :=
+      (Let _ _ X (fun x => Y))
+      (at level 200, x ident, X at level 100, Y at level 200).
+
+    (** Let with a typed answer. *)
+    Notation "'let!' x : A ':=' X 'in' Y" :=
+      (Let _ _ X (fun (x : A) => Y))
+      (at level 200, x ident, X at level 100, A at level 200, Y at level 200).
+
+    (** Let ignoring the unit answer. *)
+    Notation "'do!' X 'in' Y" :=
+      (Let _ _ X (fun (_ : unit) => Y))
+      (at level 200, X at level 100, Y at level 200).
+  End Notations.
+End C.
 
 Module Model.
   Record t (E : Effect.t) (S : Type) := New {
@@ -37,19 +89,7 @@ Module Step.
     t m y s y' s' ->
     t m (C.Join _ _ x y) s (C.Join _ _ x y') s'
   | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
-    t m (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s
-  | FirstLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
-    (s s' : S),
-    t m x s x' s' ->
-    t m (C.First _ _ x y) s (C.First _ _ x' y) s'
-  | FirstRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
-    (s s' : S),
-    t m y s y' s' ->
-    t m (C.First _ _ x y) s (C.First _ _ x y') s'
-  | FirstInl : forall (A B : Type) (v_x : A) (y : C.t E B) (s : S),
-    t m (C.First _ _ (C.Ret _ v_x) y) s (C.Ret _ (inl v_x)) s
-  | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B) (s : S),
-    t m (C.First _ _ x (C.Ret _ v_y)) s (C.Ret _ (inr v_y)) s.
+    t m (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s.
 
   (** If the condition is always true then the evaluation is non-blocking. *)
   Fixpoint non_blocking {E : Effect.t} {S : Type} (m : Model.t E S)
@@ -57,7 +97,7 @@ Module Step.
     {A : Type} (x : C.t E A) (s : S)
     {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
       (exists x' : C.t E A, exists s' : S, t m x s x' s').
-    destruct x as [A v_x | c | A B x f | A B x y | A B x y].
+    destruct x as [A v_x | c | A B x f | A B x y].
     - left.
       now exists v_x.
     - right.
@@ -92,17 +132,6 @@ Module Step.
         exists (C.Join _ _ x' y).
         exists s'.
         now apply JoinLeft.
-    - right.
-      destruct (non_blocking _ _ m progress _ x s) as [H_x | H_x].
-      + destruct H_x as [v_x H_x].
-        exists (C.Ret _ (inl v_x)).
-        exists s.
-        rewrite H_x.
-        apply FirstInl.
-      + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
-        exists (C.First _ _ x' y).
-        exists s'.
-        now apply FirstLeft.
   Qed.
 End Step.
 
@@ -176,10 +205,6 @@ Module M.
     | Choose x1 x2 => Choose (join x1 y k) (join x2 y k)
     end.
 
-  Definition first {E : Effect.t} {S : Type} {m : Model.t E S} {A B C : Type}
-    (x : t m A) (y : t m B) (k : A + B -> t m C) : t m C.
-  Admitted.
-
   Fixpoint compile {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : C.t E A) : (A -> t m B) -> t m B :=
     match x with
@@ -187,7 +212,6 @@ Module M.
     | C.Call c => fun k => Call c (fun s => k (Model.answer m c s))
     | C.Let _ _ x f => fun k => compile x (fun x => compile (f x) k)
     | C.Join  _ _ x y => fun k => join (compile x Ret) (compile y Ret) k
-    | C.First  _ _ x y => fun k => first (compile x Ret) (compile y Ret) k
     end.
 End M.
 
