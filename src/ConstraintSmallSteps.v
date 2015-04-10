@@ -154,6 +154,12 @@ Module C.
       (x : C.t E A) (s : S) : Prop :=
       forall (x' : C.t E A) (s' : S), Steps.t m x s x' s' -> NotStuck.t m x' s'.
   End DeadLockFree.
+
+  Module Trace.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
+    | Ret : A -> t m A
+    | Call : forall c h, (forall s, Model.condition m c s -> t m (h s)) -> t m A.
+  End Trace.
 End C.
 
 Module M.
@@ -226,6 +232,7 @@ Module M.
 
   Lemma ok {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type} (x : C.t E A)
     (s : S) : DeadLockFree.t (compile m x Ret) s -> C.DeadLockFree.t m x s.
+  Qed.
 End M.
 
 Module ClosedCall.
