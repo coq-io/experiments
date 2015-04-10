@@ -6,22 +6,22 @@ Require Import Io.All.
 
 Import C.Notations.
 
-(*Module Model.
+Module Model.
   Record t (E : Effect.t) (S : Type) := New {
+    condition : Effect.command E -> S -> Prop;
     answer : forall c, S -> Effect.answer E c;
-    state : Effect.command E -> S -> S;
-    invariant : S -> S -> Prop }.
+    state : Effect.command E -> S -> S }.
   Arguments New {E S} _ _ _.
+  Arguments condition {E S} _ _ _.
   Arguments answer {E S} _ _ _.
   Arguments state {E S} _ _ _.
-  Arguments invariant {E S} _ _ _.
 End Model.
 
 Module Step.
   Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
     : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
   | Call : forall (c : Effect.command E) (s : S),
-    Model.invariant m s (Model.state m c s) ->
+    Model.condition m c s ->
     t m (C.Call c) s (C.Ret _ (Model.answer m c s)) (Model.state m c s)
   | LetLeft : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
     (x' : C.t E A) (s s' : S),
@@ -53,8 +53,9 @@ Module Step.
   | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B) (s : S),
     t m (C.First _ _ x (C.Ret _ v_y)) s (C.Ret _ (inr v_y)) s.
 
+  (** If the condition is always true then the evaluation is non-blocking. *)
   Fixpoint non_blocking {E : Effect.t} {S : Type} (m : Model.t E S)
-    (progress : forall c s, Model.invariant m s (Model.state m c s))
+    (progress : forall c s, Model.condition m c s)
     {A : Type} (x : C.t E A) (s : S)
     {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
       (exists x' : C.t E A, exists s' : S, t m x s x' s').
@@ -115,7 +116,7 @@ Module Steps.
     Step.t m x s x' s' -> t m x' s' x'' s'' -> t m x s x'' s''.
 End Steps.
 
-Module Progress.
+(*Module Progress.
   Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
     : C.t E A -> S -> Prop :=
   | Value : forall (x : A) (s : S), t m (C.Ret _ x) s
@@ -129,47 +130,7 @@ Module Progresses.
   | Steps : forall (x x': C.t E A) (s s': S), Step.t m x s x' s' ->
     (forall x' s', Step.t m x s x' s' -> t m x' s') ->
     t m x s.
-End Progresses.
-
-Module M.
-  Inductive t (S : Type) (A : Type) :=
-  | Value : A -> t S A
-  | Step : (S -> t S A * S) -> t S A.
-  Arguments Value {S A} _.
-  Arguments Step {S A} _.
-
-  Definition ret {S A : Type} (x : A) : t S A :=
-    Value x.
-
-  Fixpoint bind {S A B : Type} (x : t S A) (f : A -> t S B) : t S B :=
-    match x with
-    | Value x => f x
-    | Step x =>
-      Step (fun s =>
-        let (x, s) := x s in
-        (bind x f, s))
-    end.
-End M.
-
-Module Joining.
-  Inductive t {S A B : Type} : M.t S A -> M.t S B -> M.t S (A * B) -> Prop :=
-  | Pure : forall (x : A) (y : B), t (M.Value x) (M.Value y) (M.Value (x, y))
-  | Left : forall x s' y z, (forall s, t (x s) y (z s)) ->
-    t (M.Step (fun s => (x s, s' s))) y (M.Step (fun s => (z s, s' s)))
-  | Right : forall x y s' z, (forall s, t x (y s) (z s)) ->
-    t x (M.Step (fun s => (y s, s' s))) (M.Step (fun s => (z s, s' s))).
-End Joining.*)
-
-Module Model.
-  Record t (E : Effect.t) (S : Type) := New {
-    condition : Effect.command E -> S -> Prop;
-    answer : forall c, S -> Effect.answer E c;
-    state : Effect.command E -> S -> S }.
-  Arguments New {E S} _ _ _.
-  Arguments condition {E S} _ _ _.
-  Arguments answer {E S} _ _ _.
-  Arguments state {E S} _ _ _.
-End Model.
+End Progresses.*)
 
 Module Tree.
   Inductive t (A : Type) : Type :=
