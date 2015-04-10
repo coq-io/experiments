@@ -143,21 +143,18 @@ Module Steps.
     Step.t m x s x' s' -> t m x' s' x'' s'' -> t m x s x'' s''.
 End Steps.
 
-(*Module Progress.
+Module NotStuck.
   Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
     : C.t E A -> S -> Prop :=
   | Value : forall (x : A) (s : S), t m (C.Ret _ x) s
-  | Step : forall (x x': C.t E A) (s s': S), Step.t m x s x' s' -> t m x s.
-End Progress.
+  | Step : forall (x x' : C.t E A) (s s' : S), Step.t m x s x' s' -> t m x s.
+End NotStuck.
 
-Module Progresses.
-  Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-    : C.t E A -> S -> Prop :=
-  | Value : forall (x : A) (s : S), t m (C.Ret _ x) s
-  | Steps : forall (x x': C.t E A) (s s': S), Step.t m x s x' s' ->
-    (forall x' s', Step.t m x s x' s' -> t m x' s') ->
-    t m x s.
-End Progresses.*)
+Module DeadLockFree.
+  Definition t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+    (x : C.t E A) (s : S) : Prop :=
+    forall (x' : C.t E A) (s' : S), Steps.t m x s x' s' -> NotStuck.t m x' s'.
+End DeadLockFree.
 
 Module Call.
   Record t {E : Effect.t} {S : Type} (m : Model.t E S) (T : Type) := New {
@@ -186,6 +183,17 @@ Module M.
     | ChooseLeft : forall s x1 x2, t s x1 -> t s (M.Choose x1 x2)
     | ChooseRight : forall s x1 x2, t s x2 -> t s (M.Choose x1 x2).
   End NotStuck.
+
+  Module DeadLockFree.
+    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      : M.t m A -> Prop :=
+    | Ret : forall x, t (M.Ret x)
+    | Call : forall c h,
+      (forall s, Model.condition m c s ->
+        NotStuck.t s (h (Model.state m c s)) /\ t (h (Model.state m c s))) ->
+      t (M.Call c h)
+    | Choose : forall x1 x2, t x1 -> t x2 -> t (M.Choose x1 x2).
+  End DeadLockFree.
 
   Module Step.
     Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
