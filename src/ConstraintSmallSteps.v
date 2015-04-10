@@ -177,6 +177,41 @@ Module M.
   Arguments Call {E S m A} _ _.
   Arguments Choose {E S m A} _ _.
 
+  (** If a computation is not stuck. *)
+  Module NotStuck.
+    Inductive t {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      : S -> M.t m A -> Prop :=
+    | Ret : forall s x, t s (M.Ret x)
+    | Call : forall s c h, Model.condition m c s -> t s (M.Call c h)
+    | ChooseLeft : forall s x1 x2, t s x1 -> t s (M.Choose x1 x2)
+    | ChooseRight : forall s x1 x2, t s x2 -> t s (M.Choose x1 x2).
+  End NotStuck.
+
+  Module Step.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
+      : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
+    | Call : forall (c : Effect.command E) (s : S),
+      Model.condition m c s ->
+      t m (C.Call c) s (C.Ret _ (Model.answer m c s)) (Model.state m c s)
+    | LetLeft : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
+      (x' : C.t E A) (s s' : S),
+      t m x s x' s' ->
+      t m (C.Let _ _ x f) s (C.Let _ _ x' f) s'
+    | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B) (v_x : A)
+      (s : S),
+      t m (C.Let _ _ (C.Ret _ v_x) f) s (f v_x) s
+    | JoinLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
+      (s s' : S),
+      t m x s x' s' ->
+      t m (C.Join _ _ x y) s (C.Join _ _ x' y) s'
+    | JoinRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
+      (s s' : S),
+      t m y s y' s' ->
+      t m (C.Join _ _ x y) s (C.Join _ _ x y') s'
+    | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
+      t m (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s.
+  End Step.
+
   Fixpoint bind {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (f : A -> t m B) : t m B :=
     match x with
