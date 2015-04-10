@@ -31,6 +31,17 @@ Module C.
   Arguments Join {E A B C} _ _ _.
 
   Module Step.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      : S -> C.t E A -> S -> C.t E A -> Prop :=
+    | Call : forall s c h,
+      t m s (C.Call c h) (Model.state m c s) (h (Model.answer m c s))
+    | JoinLeft : forall B C (x x' : C.t E B) (y : C.t E C) z s s',
+      t m (A := B) s x s' x' ->
+      t m s (C.Join x y z) s' (C.Join x' y z)
+    | JoinRight : forall B C (x : C.t E B) (y y' : C.t E C) z s s',
+      t m (A := C) s y s' y' ->
+      t m s (C.Join x y z) s' (C.Join x y' z).
+
     Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
       : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
     | Call : forall (c : Effect.command E) (s : S),
