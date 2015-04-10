@@ -15,4 +15,18 @@ Module Model.
   Arguments state {E S} _ _ _.
 End Model.
 
+Module Sequential.
+  Inductive t (E : Effect.t) : Type :=
+  | Ret : t E
+  | Call : forall c, (Effect.answer E c -> t E) -> t E.
+  Arguments Ret {E}.
+  Arguments Call {E} _ _.
+End Sequential.
 
+Module Concurrent.
+  Inductive t (E : Effect.t) : Type :=
+  | Ret : Sequential.t E -> t E
+  | Spawn : t E -> Sequential.t E -> t E.
+  Arguments Ret {E} _.
+  Arguments Spawn {E} _ _.
+End Concurrent.
