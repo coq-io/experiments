@@ -20,7 +20,7 @@ Module Model.
   Arguments state {E S} _ _ _.
 End Model.
 
-Module C.
+(*Module C.
   (** The description of a computation. *)
   Inductive t (E : Effect.t) (A : Type) : Type :=
   | Ret : A -> t E A
@@ -649,4 +649,4 @@ Module Lock.
   Lemma ex6_progress_7 : Progress.of_C m (ex6 7) false.
     Time now apply solve_ok.
   Qed.
-End Lock.
+End Lock.*)
