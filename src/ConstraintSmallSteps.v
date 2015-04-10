@@ -1,4 +1,5 @@
 (** A small-steps semantics for computations with constraints on the model. *)
+Require Import Coq.Bool.Bool.
 Require Import FunctionNinjas.All.
 Require Import ErrorHandlers.All.
 Require Import Io.All.
@@ -355,26 +356,105 @@ End Progress.
 Module Solve.
   Module Tree.
     Fixpoint not_stuck {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-      (dec : forall c s, option (Model.condition m c s))
-      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
-      : option (ClosedM.Tree.NotStuck.t tree) :=
+      (dec : Effect.command E -> S -> bool)
+      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A))) : bool :=
       match tree with
-      | Tree.Leaf (ClosedCall.New c s h) =>
-        Option.bind (dec c s) (fun H =>
-        Some (ClosedM.Tree.NotStuck.Leaf c s h H))
-      | Tree.Node tree1 tree2 =>
-        match not_stuck dec tree1 with
-        | Some P => Some (ClosedM.Tree.NotStuck.NodeLeft tree1 tree2 P)
-        | None =>
-          match not_stuck dec tree2 with
-          | Some P => Some (ClosedM.Tree.NotStuck.NodeRight tree1 tree2 P)
-          | None => None
-          end
-        end
+      | Tree.Leaf (ClosedCall.New c s h) => dec c s
+      | Tree.Node tree1 tree2 => orb (not_stuck dec tree1) (not_stuck dec tree2)
       end.
+
+    Fixpoint not_stuck_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+      {dec : Effect.command E -> S -> bool}
+      (dec_ok : forall c s, dec c s = true -> Model.condition m c s)
+      (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+      : not_stuck dec tree = true -> ClosedM.Tree.NotStuck.t tree.
+      intro H.
+      destruct tree as [call | tree1 tree2].
+      - destruct call as [c s h].
+        apply ClosedM.Tree.NotStuck.Leaf.
+        now apply dec_ok.
+      - destruct (orb_prop _ _ H).
+        + apply ClosedM.Tree.NotStuck.NodeLeft.
+          now apply not_stuck_ok with (dec := dec).
+        + apply ClosedM.Tree.NotStuck.NodeRight.
+          now apply not_stuck_ok with (dec := dec).
+    Qed.
   End Tree.
 
   Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    (dec : Effect.command E -> S -> bool) (x : ClosedM.t m A)
+    : option (Tree.t (ClosedCall.t m (ClosedM.t m A))) :=
+    let fix for_all (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+      : option (Tree.t (ClosedCall.t m (ClosedM.t m A))) :=
+      match tree with
+      | Tree.Leaf (ClosedCall.New c s h) =>
+        if dec c s then
+          solve dec h
+        else
+          None
+      | Tree.Node tree1 tree2 =>
+        match for_all tree1 with
+        | None => for_all tree2
+        | Some err => Some err
+        end
+      end in
+    match x with
+    | ClosedM.Ret _ => None
+    | ClosedM.Call tree =>
+      if Tree.not_stuck dec tree then
+        for_all tree
+      else
+        Some tree
+    end.
+
+  (*Fixpoint solve_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    {dec : Effect.command E -> S -> bool}
+    (dec_true_ok : forall c s, dec c s = true -> Model.condition m c s)
+    (dec_false_ok : forall c s, dec c s = false -> ~ Model.condition m c s)
+    (x : ClosedM.t m A) : solve dec x = None -> Progress.t x.
+    intro H.
+    destruct x as [x | tree].
+    - apply Progress.Ret.
+    - assert (H_not_stuck : Tree.not_stuck dec tree = true) by (
+        case_eq (Tree.not_stuck dec tree); trivial;
+        intro Heq; simpl in H; rewrite Heq in H; congruence).
+      apply Progress.Call.
+      + now apply (Tree.not_stuck_ok dec_true_ok).
+      + refine (
+          let fix for_all t : Tree.not_stuck dec t = true ->
+            ClosedM.Tree.ForAll.t Progress.t t := _ in
+          for_all tree H_not_stuck).
+        intro H_t_not_stuck.
+        destruct t as [call | t1 t2].
+        * destruct call as [c s h].
+          apply ClosedM.Tree.ForAll.Leaf.
+          case_eq (dec c s); intros H_dec H_condition.
+          apply solve_ok with (dec := dec); trivial.
+          ++ intro.
+            apply solve_ok with (dec := dec); trivial.
+            apply dec_true_ok.
+          
+    refine (
+      let fix for_all (tree : Tree.t (ClosedCall.t m (ClosedM.t m A)))
+        : ClosedM.Tree.ForAll.t Progress.t tree := _ in _).
+    - destruct tree as [call | tree1 tree2].
+      + destruct call as [c s h].
+        apply ClosedM.Tree.ForAll.Leaf.
+        case_eq (dec c s); intro H_dec.
+        * intro.
+          apply solve_ok with (dec := dec); trivial.
+          apply dec_true_ok.
+    -
+  Qed.*)
+
+  Fixpoint solve_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
+    {dec : Effect.command E -> S -> bool}
+    (dec_true_ok : forall c s, dec c s = true -> Model.condition m c s)
+    (dec_false_ok : forall c s, dec c s = false -> ~ Model.condition m c s)
+    (x : ClosedM.t m A) : solve dec x = None -> Progress.t x.
+  Admitted.
+
+  (*Fixpoint solve {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
     (dec : forall c s, option (Model.condition m c s))
     (dec_not : forall c s, option (~ Model.condition m c s))
     (x : ClosedM.t m A)
@@ -405,24 +485,7 @@ Module Solve.
         inl (Progress.Call tree H_not_stuck H_for_all))
       | None => inr tree
       end
-    end.
-
-  Definition is_progress {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-    (dec : forall c s, option (Model.condition m c s))
-    (dec_not : forall c s, option (~ Model.condition m c s))
-    (x : ClosedM.t m A) : bool :=
-    match solve dec dec_not x with
-    | inl _ => true
-    | inr _ => false
-    end.
-
-  Lemma is_progress_ok {E : Effect.t} {S : Type} {m : Model.t E S} {A : Type}
-    (dec : forall c s, option (Model.condition m c s))
-    (dec_not : forall c s, option (~ Model.condition m c s))
-    (x : ClosedM.t m A) : is_progress dec dec_not x = true -> Progress.t x.
-    unfold is_progress.
-    destruct (solve dec dec_not x) as [H |]; congruence.
-  Qed.
+    end.*)
 End Solve.
 
 Module Lock.
@@ -461,19 +524,26 @@ Module Lock.
   Definition m : Model.t E S :=
     Model.New Condition.t answer state.
 
-  Definition dec (c : Effect.command E) (s : S)
-    : option (Model.condition m c s).
-    destruct c; destruct s;
-      try (exact (Some Condition.Lock)); try (exact (Some Condition.Unlock));
-      exact None.
-  Defined.
+  Definition dec (c : Effect.command E) (s : S) : bool :=
+    match (c, s) with
+    | (Command.Lock, false) | (Command.Unlock, true) => true
+    | (Command.Lock, true) | (Command.Unlock, false) => false
+    end.
 
-  Definition dec_not (c : Effect.command E) (s : S)
-    : option (~ Model.condition m c s).
-    destruct c; destruct s;
-      [apply Some | apply None | apply None | apply Some];
-      intro; inversion H.
-  Defined.
+  Definition dec_true_ok (c : Effect.command E) (s : S)
+    : dec c s = true -> Model.condition m c s.
+  Admitted.
+
+  Definition dec_false_ok (c : Effect.command E) (s : S)
+    : dec c s = false -> ~ Model.condition m c s.
+  Admitted.
+
+  Lemma solve_ok {A : Type} (x : C.t E A) (s : S)
+    : Solve.solve dec (ClosedM.of_C m x s) = None -> Progress.of_C m x s.
+    apply Solve.solve_ok.
+    - exact dec_true_ok.
+    - exact dec_false_ok.
+  Qed.
 
   Definition ex1 : C.t E unit :=
     do! lock in
@@ -483,7 +553,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex1) false).*)
 
   Lemma ex1_progress : Progress.of_C m ex1 false.
-    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    now apply solve_ok.
   Qed.
 
   Definition ex2 : C.t E (nat * nat) :=
@@ -493,7 +563,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex2) false).*)
 
   Lemma ex2_progress : Progress.of_C m ex2 false.
-    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    now apply solve_ok.
   Qed.
 
   Definition ex3 : C.t E (nat * unit) :=
@@ -505,7 +575,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex3) false).*)
 
   Lemma ex3_progress : Progress.of_C m ex3 false.
-    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    now apply solve_ok.
   Qed.
 
   Definition ex4 : C.t E (unit * unit) :=
@@ -515,7 +585,7 @@ Module Lock.
   Compute (ClosedM.compile (M.compile (m := m) ex4) false).*)
 
   Lemma ex4_progress : Progress.of_C m ex4 false.
-    now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    now apply solve_ok.
   Qed.
 
   Fixpoint ex5 (n : nat) : C.t E unit :=
@@ -527,35 +597,35 @@ Module Lock.
     end.
 
   Lemma ex5_progress_0 : Progress.of_C m (ex5 0) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_1 : Progress.of_C m (ex5 1) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_2 : Progress.of_C m (ex5 2) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_3 : Progress.of_C m (ex5 3) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_4 : Progress.of_C m (ex5 4) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_5 : Progress.of_C m (ex5 5) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_6 : Progress.of_C m (ex5 6) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex5_progress_7 : Progress.of_C m (ex5 7) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Fixpoint ex6 (n : nat) : C.t E nat :=
@@ -573,34 +643,34 @@ Module Lock.
     end.
 
   Lemma ex6_progress_0 : Progress.of_C m (ex6 0) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_1 : Progress.of_C m (ex6 1) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_2 : Progress.of_C m (ex6 2) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_3 : Progress.of_C m (ex6 3) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_4 : Progress.of_C m (ex6 4) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_5 : Progress.of_C m (ex6 5) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_6 : Progress.of_C m (ex6 6) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 
   Lemma ex6_progress_7 : Progress.of_C m (ex6 7) false.
-    Time now apply Solve.is_progress_ok with (dec := dec) (dec_not := dec_not).
+    Time now apply solve_ok.
   Qed.
 End Lock.
