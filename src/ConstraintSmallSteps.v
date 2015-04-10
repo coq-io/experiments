@@ -35,78 +35,14 @@ Module C.
       : S -> C.t E A -> S -> C.t E A -> Prop :=
     | Call : forall s c h,
       t m s (C.Call c h) (Model.state m c s) (h (Model.answer m c s))
-    | JoinLeft : forall B C (x x' : C.t E B) (y : C.t E C) z s s',
+    | JoinLeft : forall s B C (x : C.t E B) (y : C.t E C) z s' x',
       t m (A := B) s x s' x' ->
       t m s (C.Join x y z) s' (C.Join x' y z)
-    | JoinRight : forall B C (x : C.t E B) (y y' : C.t E C) z s s',
+    | JoinRight : forall s B C (x : C.t E B) (y : C.t E C) z s' y',
       t m (A := C) s y s' y' ->
-      t m s (C.Join x y z) s' (C.Join x y' z).
-
-    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S)
-      : forall {A : Type}, C.t E A -> S -> C.t E A -> S -> Prop :=
-    | Call : forall (c : Effect.command E) (s : S),
-      Model.condition m c s ->
-      t m (C.Call c) s (C.Ret _ (Model.answer m c s)) (Model.state m c s)
-    | LetLeft : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B)
-      (x' : C.t E A) (s s' : S),
-      t m x s x' s' ->
-      t m (C.Let _ _ x f) s (C.Let _ _ x' f) s'
-    | Let : forall (A B : Type) (x : C.t E A) (f : A -> C.t E B) (v_x : A)
-      (s : S),
-      t m (C.Let _ _ (C.Ret _ v_x) f) s (f v_x) s
-    | JoinLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
-      (s s' : S),
-      t m x s x' s' ->
-      t m (C.Join _ _ x y) s (C.Join _ _ x' y) s'
-    | JoinRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
-      (s s' : S),
-      t m y s y' s' ->
-      t m (C.Join _ _ x y) s (C.Join _ _ x y') s'
-    | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
-      t m (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s.
-
-    (** If the condition is always true then the evaluation is non-blocking. *)
-    Fixpoint non_blocking {E : Effect.t} {S : Type} (m : Model.t E S)
-      (progress : forall c s, Model.condition m c s)
-      {A : Type} (x : C.t E A) (s : S)
-      {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
-        (exists x' : C.t E A, exists s' : S, t m x s x' s').
-      destruct x as [A v_x | c | A B x f | A B x y].
-      - left.
-        now exists v_x.
-      - right.
-        exists (C.Ret _ (Model.answer m c s)).
-        exists (Model.state m c s).
-        apply Call.
-        apply progress.
-      - right.
-        destruct (non_blocking _ _ m progress _ x s) as [H | H].
-        + destruct H as [v_x H]; rewrite H.
-          exists (f v_x).
-          exists s.
-          now apply Let.
-        + destruct H as [x' H]; destruct H as [s' H].
-          exists (C.Let _ _ x' f).
-          exists s'.
-          now apply LetLeft.
-      - right.
-        destruct (non_blocking _ _ m progress _ x s) as [H_x | H_x].
-        + destruct H_x as [v_x H_x].
-          destruct (non_blocking _ _ m progress _ y s) as [H_y | H_y].
-          * destruct H_y as [v_y H_y].
-            exists (C.Ret _ (v_x, v_y)).
-            exists s.
-            rewrite H_x; rewrite H_y.
-            apply Join.
-          * destruct H_y as [y' H_y]; destruct H_y as [s' H_y].
-            exists (C.Join _ _ x y').
-            exists s'.
-            now apply JoinRight.
-        + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
-          exists (C.Join _ _ x' y).
-          exists s'.
-          now apply JoinLeft.
-    Qed.
+      t m s (C.Join x y z) s' (C.Join x y' z)
+    | Join : forall s B C (x : B) (y : C) z,
+      t m s (C.Join (C.Ret x) (C.Ret y) z) s (z (x, y)).
   End Step.
 
   Module Steps.
