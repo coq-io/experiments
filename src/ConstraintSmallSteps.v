@@ -34,22 +34,74 @@ Module C.
     Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
       : S -> C.t E A -> S -> C.t E A -> Prop :=
     | Call : forall s c h,
+      Model.condition m c s ->
       t m s (C.Call c h) (Model.state m c s) (h (Model.answer m c s))
-    | JoinLeft : forall s B C (x : C.t E B) (y : C.t E C) z s' x',
+    | JoinLeft : forall s B C (x : C.t E B) (y : C.t E C) h s' x',
       t m (A := B) s x s' x' ->
-      t m s (C.Join x y z) s' (C.Join x' y z)
-    | JoinRight : forall s B C (x : C.t E B) (y : C.t E C) z s' y',
+      t m s (C.Join x y h) s' (C.Join x' y h)
+    | JoinRight : forall s B C (x : C.t E B) (y : C.t E C) h s' y',
       t m (A := C) s y s' y' ->
-      t m s (C.Join x y z) s' (C.Join x y' z)
-    | Join : forall s B C (x : B) (y : C) z,
-      t m s (C.Join (C.Ret x) (C.Ret y) z) s (z (x, y)).
+      t m s (C.Join x y h) s' (C.Join x y' h)
+    | Join : forall s B C (x : B) (y : C) h,
+      t m s (C.Join (C.Ret x) (C.Ret y) h) s (h (x, y)).
   End Step.
+
+  Module Step'.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      : S -> C.t E A -> S -> C.t E A -> Prop :=
+    | Call : forall s c h,
+      Model.condition m c s ->
+      t m s (C.Call c h) (Model.state m c s) (h (Model.answer m c s))
+    | JoinLeft : forall s B C (x : C.t E B) (y : C.t E C) h s' x',
+      t m (A := B) s x s' x' ->
+      t m s (C.Join x y h) s' (C.Join x' y h)
+    | JoinRight : forall s B C (x : C.t E B) (y : C.t E C) h s' y',
+      t m (A := C) s y s' y' ->
+      t m s (C.Join x y h) s' (C.Join x y' h)
+    | Join : forall s B C (x : B) (y : C) h,
+      t m s (C.Join (C.Ret x) (C.Ret y) h) s (h (x, y)).
+  End Step'.
 
   Module NotStuck.
     Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
       : S -> C.t E A -> Prop :=
     | Value : forall s x, t m s (C.Ret x)
     | Step : forall s x s' x', Step.t m s x s' x' -> t m s x.
+
+    Fixpoint is_not_stuck {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      (dec : forall c s, option (Model.condition m c s)) (s : S) (x : C.t E A)
+      : option (t m s x) :=
+      match x with
+      | Ret x => Some (Value m s x)
+      | Call c h =>
+        Option.bind (dec c s) (fun H =>
+        Some (Step m s _ _ _ (Step.Call m s c h H)))
+      | Join _ _ x y h =>
+        Option.bind (is_not_stuck m dec s x) (fun H =>
+          )
+      end.
+
+    Fixpoint is_not_stuck {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      (dec : Effect.command E -> S -> bool) (s : S) (x : C.t E A) : bool :=
+      match x with
+      | Ret _ => true
+      | Call c h => dec c s
+      | Join _ _ x y h => orb (is_not_stuck m dec s x) (is_not_stuck m dec s y)
+      end.
+
+    Fixpoint is_not_stuck_ok {E : Effect.t} {S : Type} (m : Model.t E S)
+      {A : Type} (dec : Effect.command E -> S -> bool)
+      (dec_ok : forall c s, dec c s = true -> Model.condition m c s) (s : S)
+      (x : C.t E A) : is_not_stuck m dec s x = true -> t m s x.
+      intro H.
+      destruct x as [x | c h | B C x y h].
+      - apply Value.
+      - eapply Step.
+        apply Step.Call.
+        now apply dec_ok.
+      - destruct (orb_prop _ _ H) as [H_x | H_y].
+        + destruct (is_not_stuck_ok _ _ m _ dec dec_ok s x H_x).
+    Qed.
   End NotStuck.
 
   Module DeadLockFree.
