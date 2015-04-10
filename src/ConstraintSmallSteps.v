@@ -31,34 +31,91 @@ Module C.
   Arguments Join {E A B C} _ _ _.
 
   Module Step.
-    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-      : S -> C.t E A -> S -> C.t E A -> Prop :=
-    | Call : forall s c h,
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type} (s : S)
+      : C.t E A -> S -> C.t E A -> Type :=
+    | Call : forall c h,
       Model.condition m c s ->
       t m s (C.Call c h) (Model.state m c s) (h (Model.answer m c s))
-    | JoinLeft : forall s B C (x : C.t E B) (y : C.t E C) h s' x',
+    | JoinLeft : forall B C (x : C.t E B) (y : C.t E C) h s' x',
       t m (A := B) s x s' x' ->
       t m s (C.Join x y h) s' (C.Join x' y h)
-    | JoinRight : forall s B C (x : C.t E B) (y : C.t E C) h s' y',
+    | JoinRight : forall B C (x : C.t E B) (y : C.t E C) h s' y',
       t m (A := C) s y s' y' ->
       t m s (C.Join x y h) s' (C.Join x y' h)
-    | Join : forall s B C (x : B) (y : C) h,
+    | Join : forall B C (x : B) (y : C) h,
       t m s (C.Join (C.Ret x) (C.Ret y) h) s (h (x, y)).
   End Step.
 
+  Module DeadLockFree.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type} (s : S)
+      : C.t E A -> Prop :=
+    | Value : forall x, t m s (C.Ret x)
+    | Step : forall x, (forall s' x', Step.t m s x s' x' -> t m s' x') ->
+      t m s x.
+  End DeadLockFree.
+
+  Module Choose.
+    Inductive t (E : Effect.t) (A : Type) : Type :=
+    | Ret : A -> t E A
+    | Call : forall c, (Effect.answer E c -> t E A) -> t E A
+    | Choose : t E A -> t E A -> t E A.
+    Arguments Ret {E A} _.
+    Arguments Call {E A} _ _.
+    Arguments Choose {E A} _ _.
+
+    Module Join.
+      Inductive t {E : Effect.t} {A B : Type}
+        : Choose.t E A -> Choose.t E B -> Choose.t E (A * B) -> Type :=
+      | RetRet : forall x y, t (Choose.Ret x) (Choose.Ret y) (Choose.Ret (x, y))
+      | RetCall : .
+    End Join.
+  End Choose.
+
+  Module ToChoose.
+    Inductive t {E : Effect.t} {A : Type} : C.t E A -> Choose.t E A -> Type :=
+    | Ret : forall x, t (C.Ret x) (Choose.Ret x)
+    | Call : forall (c : Effect.command E) (h : Effect.answer E c -> C.t E A),
+      (forall s, t () h') -> .
+  End ToChoose.
+
+  Module Unroll.
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
+    | Undef : t m A
+    | Ret : A -> t m A
+    | Condition : forall c s, (Model.condition m c s -> t m A) -> t m A
+    | Schedule : (bool -> t m A) -> t m A.
+    Arguments Undef {E S m A}.
+    Arguments Ret {E S m A} _.
+    Arguments Condition {E S m A} _ _ _.
+    Arguments Schedule {E S m A} _.
+
+    Fixpoint compile {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
+      (s : S) (x : C.t E A) : t m A :=
+      match x with
+      | C.Re t x => Ret x
+      | C.Call c h =>
+        Condition c s (fun _ =>
+          compile m (Model.state m c s) (h (Model.answer m c s)))
+      | C.Join _ _ (C.Ret x) (C.Ret y) h => compile m s (h (x, y))
+      | C.Join _ _ x y h =>
+        Schedule (fun b =>
+          if b then
+            )
+      end.
+  End Unroll.
+
   Module Step'.
-    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type}
-      : S -> C.t E A -> S -> C.t E A -> Prop :=
-    | Call : forall s c h,
-      Model.condition m c s ->
+    Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) {A : Type} (s : S)
+      : C.t E A -> S -> C.t E A -> Prop :=
+    | Call : forall c h, Model.condition m c s ->
       t m s (C.Call c h) (Model.state m c s) (h (Model.answer m c s))
-    | JoinLeft : forall s B C (x : C.t E B) (y : C.t E C) h s' x',
+    | JoinLeft : forall B C (x : C.t E B) (y : C.t E C) h s' x',
       t m (A := B) s x s' x' ->
       t m s (C.Join x y h) s' (C.Join x' y h)
-    | JoinRight : forall s B C (x : C.t E B) (y : C.t E C) h s' y',
+    | JoinRight : forall B C (x : C.t E B) (y : C.t E C) h s' y',
       t m (A := C) s y s' y' ->
       t m s (C.Join x y h) s' (C.Join x y' h)
-    | Join : forall s B C (x : B) (y : C) h,
+    | Join : forall B C (x : B) (y : C) h,
       t m s (C.Join (C.Ret x) (C.Ret y) h) s (h (x, y)).
   End Step'.
 
