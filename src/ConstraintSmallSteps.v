@@ -4,8 +4,6 @@ Require Import FunctionNinjas.All.
 Require Import ErrorHandlers.All.
 Require Import Io.All.
 
-Import C.Notations.
-
 Module Model.
   Record t (E : Effect.t) (S : Type) := New {
     condition : Effect.command E -> S -> Prop;
@@ -132,20 +130,6 @@ Module Progresses.
     t m x s.
 End Progresses.*)
 
-Module Tree.
-  Inductive t (A : Type) : Type :=
-  | Leaf : A -> t A
-  | Node : t A -> t A -> t A.
-  Arguments Leaf {A} _.
-  Arguments Node {A} _ _.
-
-  Fixpoint map {A B : Type} (f : A -> B) (tree : t A) : t B :=
-    match tree with
-    | Leaf x => Leaf (f x)
-    | Node tree1 tree2 => Node (map f tree1) (map f tree2)
-    end.
-End Tree.
-
 Module Call.
   Record t {E : Effect.t} {S : Type} (m : Model.t E S) (T : Type) := New {
     c : Effect.command E;
@@ -158,72 +142,48 @@ End Call.
 Module M.
   Inductive t {E : Effect.t} {S : Type} (m : Model.t E S) (A : Type) : Type :=
   | Ret : A -> t m A
-  | Call : Tree.t (Call.t m (t m A)) -> t m A.
+  | Call : Effect.command E -> (S -> t m A) -> t m A
+  | Choose : t m A -> t m A -> t m A.
   Arguments Ret {E S m A} _.
-  Arguments Call {E S m A} _.
+  Arguments Call {E S m A} _ _.
+  Arguments Choose {E S m A} _ _.
 
   Fixpoint bind {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (f : A -> t m B) : t m B :=
-    let fix binds (tree : Tree.t (Call.t m (t m A)))
-      : Tree.t (Call.t m (t m B)) :=
-      match tree with
-      | Tree.Leaf (Call.New c h) =>
-        Tree.Leaf (Call.New c (fun s => bind (h s) f))
-      | Tree.Node tree1 tree2 => Tree.Node (binds tree1) (binds tree2)
-      end in
     match x with
     | Ret x => f x
-    | Call tree => Call (binds tree)
+    | Call c h => Call c (fun s => bind (h s) f)
+    | Choose x1 x2 => Choose (bind x1 f) (bind x2 f)
     end.
 
-  Definition join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
-    : t m A -> t m B -> t m (A * B) :=
-    fix join_left (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
-      let fix join_right (y : t m B) {struct y} : t m (A * B) :=
-        let fix joins_left (tree : Tree.t (Call.t m (t m A)))
-          : Tree.t (Call.t m (t m (A * B))) :=
-          match tree with
-          | Tree.Leaf (Call.New c h) =>
-            Tree.Leaf (Call.New c (fun s => join_left (h s) y))
-          | Tree.Node tree1 tree2 =>
-            Tree.Node (joins_left tree1) (joins_left tree2)
-          end in
-        let fix joins_right (tree : Tree.t (Call.t m (t m B)))
-          : Tree.t (Call.t m (t m (A * B))) :=
-          match tree with
-          | Tree.Leaf (Call.New c h) =>
-            Tree.Leaf (Call.New c (fun s => join_right (h s)))
-          | Tree.Node tree1 tree2 =>
-            Tree.Node (joins_right tree1) (joins_right tree2)
-          end in
-        match (x, y) with
-        | (Ret x, _) => bind y (fun y => Ret (x, y))
-        | (_, Ret y) => bind x (fun x => Ret (x, y))
-        | (Call tree_x, Call tree_y) =>
-          Call (Tree.Node (joins_left tree_x) (joins_right tree_y))
-        end in
-      let fix joins_left (tree : Tree.t (Call.t m (t m A)))
-        : Tree.t (Call.t m (t m (A * B))) :=
-        match tree with
-        | Tree.Leaf (Call.New c h) =>
-          Tree.Leaf (Call.New c (fun s => join_left (h s) y))
-        | Tree.Node tree1 tree2 =>
-          Tree.Node (joins_left tree1) (joins_left tree2)
-        end in
-      let fix joins_right (tree : Tree.t (Call.t m (t m B)))
-        : Tree.t (Call.t m (t m (A * B))) :=
-        match tree with
-        | Tree.Leaf (Call.New c h) =>
-          Tree.Leaf (Call.New c (fun s => join_right (h s)))
-        | Tree.Node tree1 tree2 =>
-          Tree.Node (joins_right tree1) (joins_right tree2)
-        end in
-      match (x, y) with
-      | (Ret x, _) => bind y (fun y => Ret (x, y))
-      | (_, Ret y) => bind x (fun x => Ret (x, y))
-      | (Call tree_x, Call tree_y) =>
-        Call (Tree.Node (joins_left tree_x) (joins_right tree_y))
-      end.
+  Fixpoint join_aux {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (join : S -> t m B -> t m (A * B)) (c_x : Effect.command E)
+    (x : t m A) (y : t m B) : t m (A * B) :=
+    match y with
+    | Ret y => bind x (fun x => Ret (x, y))
+    | Call c_y h_y =>
+      Choose
+        (Call c_x (fun s => join s y))
+        (Call c_y (fun s => join_aux join c_x x (h_y s)))
+    | Choose y1 y2 => Choose (join_aux join c_x x y1) (join_aux join c_x x y2)
+    end.
+
+  Fixpoint join {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
+    (x : t m A) (y : t m B) {struct x} : t m (A * B) :=
+    match x with
+    | Ret x => bind y (fun y => Ret (x, y))
+    | Call c_x h_x =>
+      let join s := join (h_x s) in
+      match y with
+      | Ret y => bind x (fun x => Ret (x, y))
+      | Call c_y h_y =>
+        Choose
+          (Call c_x (fun s => join s y))
+          (Call c_y (fun s => join_aux join c_x x (h_y s)))
+      | Choose y1 y2 => Choose (join_aux join c_x x y1) (join_aux join c_x x y2)
+      end
+    | Choose x1 x2 => Choose (join x1 y) (join x2 y)
+    end.
 
   Definition first {E : Effect.t} {S : Type} {m : Model.t E S} {A B : Type}
     (x : t m A) (y : t m B) : t m (A + B).
