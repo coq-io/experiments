@@ -1,4 +1,4 @@
-#define NUMPROCS 2
+#define NUMPROCS 8
 
 byte counter = 0;
 byte progress[NUMPROCS];
