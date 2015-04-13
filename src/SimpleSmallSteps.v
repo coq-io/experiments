@@ -122,17 +122,18 @@ Module Choose.
     | Choose x1 x2 => orb (is_not_stuck m x1 s) (is_not_stuck m x2 s)
     end.
 
-  Fixpoint check {E S} (m : Model.t E S) (x : Choose.t E) (s : S) : bool :=
+  Fixpoint check {E S} (m : Model.t E S) (post : S -> bool) (x : Choose.t E)
+    (s : S) : bool :=
     match x with
-    | Ret => true
+    | Ret => post s
     | Call c h =>
       if Model.condition m c s then
         let a := Model.answer m c s in
         let s := Model.state m c s in
-        andb (is_not_stuck m (h a) s) (check m (h a) s)
+        andb (is_not_stuck m (h a) s) (check m post (h a) s)
       else
         true
-    | Choose x1 x2 => andb (check m x1 s) (check m x2 s)
+    | Choose x1 x2 => andb (check m post x1 s) (check m post x2 s)
     end.
 End Choose.
 
@@ -184,7 +185,8 @@ Module Examples.
       ret) :: ex1 n
     end.
 
-  Definition is_ex1_ok := Choose.check m (Choose.compile @@ ex1 11) false.
+  Definition is_ex1_ok : bool :=
+    Choose.check m (fun _ => true) (Choose.compile @@ ex1 9) false.
 
   (* Time Compute is_ex1_ok. *)
 End Examples.
