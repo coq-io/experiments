@@ -1,3 +1,4 @@
+Require Import Coq.Arith.Compare_dec.
 Require Import Coq.Arith.EqNat.
 Require Import Coq.Lists.List.
 Require Import FunctionNinjas.All.
@@ -355,6 +356,64 @@ Module SimpleChannel.
   Definition result : bool :=
     Choose.check m (fun _ => true) (Choose.compile ex) (None).
 End SimpleChannel.
+
+(** See `spin/database.spin`. *)
+Module Database.
+  Record S := New {
+    holder : nat;
+    up : list bool;
+    ack : list nat }.
+
+  Definition init (n : nat) : S :=
+    New n (List.repeat false n) (List.repeat 0 n).
+
+  Module Command.
+    Inductive t :=
+    | UpdateSend (id : nat)
+    | ReceiveAck (id : nat)
+    | Receive (id : nat)
+    | Ack.
+  End Command.
+
+  Definition E : Effect.t :=
+    Effect.New Command.t (fun c => unit).
+
+  Definition condition (n : nat) (c : Effect.command E) (s : S) : bool :=
+    match c with
+    | Command.UpdateSend id => beq_nat id (holder s)
+    | Command.ReceiveAck id => beq_nat (List.nth id (ack s) n) (n - 1)
+    | Command.Receive id =>
+      andb (List.nth id (up s) false) (
+        match nat_compare (holder s) n with
+        | Lt => true
+        | _ => false
+        end)
+    | Command.Ack => true
+    end.
+
+  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+    tt.
+
+  Fixpoint list_udpate {A} (l : list A) (n : nat) (x : A) : list A :=
+    match (l, n) with
+    | ([], _) => []
+    | (_ :: l, O) => x :: l
+    | (x' :: l, Datatypes.S n) => x' :: list_udpate l n x
+    end.
+
+  Definition state (n : nat) (c : Effect.command E) (s : S) : S :=
+    match c with
+    | Command.UpdateSend id => New id (List.repeat true n) (ack s)
+    | Command.ReceiveAck id => New n (up s) (list_udpate (ack s) id 0)
+    | Command.Receive id => New (holder s) (list_udpate (up s) id false) (ack s)
+    | Command.Ack =>
+      let a := List.nth (holder s) (ack s) 0 in
+      New (holder s) (up s) (list_udpate (ack s) (holder s) (a + 1))
+    end.
+
+  Definition m (n : nat) : Model.t E S :=
+    Model.New (condition n) answer (state n).
+End Database.
 
 (** * Extraction *)
 Require Import Io.All.
