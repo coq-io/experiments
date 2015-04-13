@@ -112,4 +112,26 @@ Module Choose.
     | [] => Ret
     | x :: xs => Mix.compile (Mix.make x (compile xs))
     end.
+
+  Fixpoint is_not_stuck {E S} (dec : Effect.command E -> S -> bool)
+    (x : Choose.t E) (s : S) : bool :=
+    match x with
+    | Ret => true
+    | Call c _ => dec c s
+    | Choose x1 x2 => orb (is_not_stuck dec x1 s) (is_not_stuck dec x2 s)
+    end.
+
+  Fixpoint check {E S} (m : Model.t E S) (dec : Effect.command E -> S -> bool)
+    (x : Choose.t E) (s : S) : bool :=
+    match x with
+    | Ret => true
+    | Call c h =>
+      if dec c s then
+        let a := Model.answer m c s in
+        let s := Model.state m c s in
+        andb (is_not_stuck dec x s) (check m dec (h a) s)
+      else
+        true
+    | Choose x1 x2 => andb (check m dec x1 s) (check m dec x2 s)
+    end.
 End Choose.
