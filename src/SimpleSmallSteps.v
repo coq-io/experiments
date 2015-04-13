@@ -1,4 +1,5 @@
 Require Import Coq.Lists.List.
+Require Import FunctionNinjas.All.
 
 Import ListNotations.
 
@@ -135,3 +136,58 @@ Module Choose.
     | Choose x1 x2 => andb (check m dec x1 s) (check m dec x2 s)
     end.
 End Choose.
+
+Module Examples.
+  Definition S := bool.
+
+  Module Command.
+    Inductive t :=
+    | Lock
+    | Unlock.
+  End Command.
+
+  Definition E : Effect.t :=
+    Effect.New Command.t (fun _ => unit).
+
+  Definition ret : Sequential.t E :=
+    Sequential.Ret.
+
+  Definition lock (h : Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) Command.Lock (fun _ => h).
+
+  Definition unlock (h : Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) Command.Unlock (fun _ => h).
+
+  Module Condition.
+    Inductive t : Effect.command E -> S -> Prop :=
+    | Lock : t Command.Lock false
+    | Unlock : t Command.Unlock true.
+  End Condition.
+
+  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+    tt.
+
+  Definition state (c : Effect.command E) (s : S) : S :=
+    match c with
+    | Command.Lock => true
+    | Command.Unlock => false
+    end.
+
+  Definition m : Model.t E S :=
+    Model.New Condition.t answer state.
+
+  Definition dec (c : Effect.command E) (s : S) : bool :=
+    match (c, s) with
+    | (Command.Lock, false) | (Command.Unlock, true) => true
+    | (Command.Lock, true) | (Command.Unlock, false) => false
+    end.
+
+  Fixpoint ex1 (n : nat) : Concurrent.t E :=
+    match n with
+    | O => []
+    | Datatypes.S n =>
+      (lock @@
+      unlock @@
+      ret) :: ex1 n
+    end.
+End Examples.
