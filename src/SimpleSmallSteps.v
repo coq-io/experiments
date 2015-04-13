@@ -124,7 +124,7 @@ Module Choose.
     | Choose x1 x2 => orb (is_not_stuck m x1 s) (is_not_stuck m x2 s)
     end.
 
-  Fixpoint check {E S} (m : Model.t E S) (post : S -> bool) (x : Choose.t E)
+  Fixpoint aux {E S} (m : Model.t E S) (post : S -> bool) (x : Choose.t E)
     (s : S) : bool :=
     match x with
     | Ret => post s
@@ -132,11 +132,15 @@ Module Choose.
       if Model.condition m c s then
         let a := Model.answer m c s in
         let s := Model.state m c s in
-        andb (is_not_stuck m (h a) s) (check m post (h a) s)
+        andb (is_not_stuck m (h a) s) (aux m post (h a) s)
       else
         true
-    | Choose x1 x2 => andb (check m post x1 s) (check m post x2 s)
+    | Choose x1 x2 => andb (aux m post x1 s) (aux m post x2 s)
     end.
+
+  Definition check {E S} (m : Model.t E S) (post : S -> bool) (x : Choose.t E)
+    (s : S) : bool :=
+    andb (is_not_stuck m x s) (aux m post x s).
 End Choose.
 
 Module Examples.
@@ -295,6 +299,63 @@ Module AtomicIncrement.
     Choose.check m (post n) (Choose.compile @@ List.repeat process n) 0.
 End AtomicIncrement.
 
+Module SimpleChannel.
+  Definition S := option nat.
+
+  Module Command.
+    Inductive t :=
+    | Send (x : nat)
+    | Receive.
+  End Command.
+
+  Definition E : Effect.t :=
+    Effect.New Command.t (fun c =>
+      match c with
+      | Command.Send _ => unit
+      | Command.Receive => nat
+      end).
+
+  Definition ret : Sequential.t E :=
+    Sequential.Ret.
+
+  Definition send (n : nat) (h : Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) (Command.Send n) (fun _ => h).
+
+  Definition receive (h : nat -> Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) Command.Receive h.
+
+  Definition condition (c : Effect.command E) (s : S) : bool :=
+    match (c, s) with
+    | (Command.Send _, None) | (Command.Receive, Some _) => true
+    | (Command.Send _, Some _) | (Command.Receive, None) => false
+    end.
+
+  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+    match c with
+    | Command.Send _ => tt
+    | Command.Receive =>
+      match s with
+      | None => 0
+      | Some n => n
+      end
+    end.
+
+  Definition state (c : Effect.command E) (s : S) : S :=
+    match c with
+    | Command.Send n => Some n
+    | Command.Receive => None
+    end.
+
+  Definition m : Model.t E S :=
+    Model.New condition answer state.
+
+  Definition ex : Concurrent.t E :=
+    [receive (fun _ => ret); send 12 ret].
+
+  Definition result : bool :=
+    Choose.check m (fun _ => true) (Choose.compile ex) (None).
+End SimpleChannel.
+
 (** * Extraction *)
 Require Import Io.All.
 Require Import Io.System.All.
@@ -305,7 +366,8 @@ Import C.Notations.
 Definition result (argv : list LString.t) : C.t System.effect unit :=
   (* if Examples.is_ex1_ok then *)
   (* if Increment.result 2 then *)
-  if AtomicIncrement.result 11 then
+  (* if AtomicIncrement.result 11 then *)
+  if SimpleChannel.result then
     System.log (LString.s "OK")
   else
     System.log (LString.s "error").
