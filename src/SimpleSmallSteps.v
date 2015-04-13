@@ -188,11 +188,26 @@ Module Examples.
     | Datatypes.S n =>
       (lock @@
       unlock @@
-      lock @@
       ret) :: ex1 n
     end.
 
-  (* Compute Choose.compile @@ ex1 2. *)
+  Definition is_ex1_ok := Choose.check m dec (Choose.compile @@ ex1 11) false.
 
-  Time Compute Choose.check m dec (Choose.compile @@ ex1 7) false.
+  (* Time Compute is_ex1_ok. *)
 End Examples.
+
+(** * Extraction *)
+Require Import Io.All.
+Require Import Io.System.All.
+Require Import ListString.All.
+
+Import C.Notations.
+
+Definition result (argv : list LString.t) : C.t System.effect unit :=
+  if Examples.is_ex1_ok then
+    System.log (LString.s "OK")
+  else
+    System.log (LString.s "error").
+
+Definition main := Extraction.run result.
+Extraction "extraction/main" main.
