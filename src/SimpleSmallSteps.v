@@ -130,7 +130,7 @@ Module Choose.
       if dec c s then
         let a := Model.answer m c s in
         let s := Model.state m c s in
-        andb (is_not_stuck dec x s) (check m dec (h a) s)
+        andb (is_not_stuck dec (h a) s) (check m dec (h a) s)
       else
         true
     | Choose x1 x2 => andb (check m dec x1 s) (check m dec x2 s)
@@ -188,6 +188,11 @@ Module Examples.
     | Datatypes.S n =>
       (lock @@
       unlock @@
+      lock @@
       ret) :: ex1 n
     end.
+
+  (* Compute Choose.compile @@ ex1 2. *)
+
+  Time Compute Choose.check m dec (Choose.compile @@ ex1 7) false.
 End Examples.
