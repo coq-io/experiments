@@ -1,5 +1,7 @@
+Require Import Coq.Arith.EqNat.
 Require Import Coq.Lists.List.
 Require Import FunctionNinjas.All.
+Require Import ListPlus.All.
 
 Import ListNotations.
 
@@ -191,6 +193,61 @@ Module Examples.
   (* Time Compute is_ex1_ok. *)
 End Examples.
 
+Module Increment.
+  Definition S := nat.
+
+  Module Command.
+    Inductive t :=
+    | Read
+    | Write (s : S).
+  End Command.
+
+  Definition E : Effect.t :=
+    Effect.New Command.t (fun c =>
+      match c with
+      | Command.Read => S
+      | Command.Write _ => unit
+      end).
+
+  Definition ret : Sequential.t E :=
+    Sequential.Ret.
+
+  Definition read (h : S -> Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) Command.Read h.
+
+  Definition write (s : S) (h : Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) (Command.Write s) (fun _ => h).
+
+  Definition condition (c : Effect.command E) (s : S) : bool :=
+    true.
+
+  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+    match c with
+    | Command.Read => s
+    | Command.Write _ => tt
+    end.
+
+  Definition state (c : Effect.command E) (s : S) : S :=
+    match c with
+    | Command.Read => s
+    | Command.Write s => s
+    end.
+
+  Definition m : Model.t E S :=
+    Model.New condition answer state.
+
+  Definition process : Sequential.t E :=
+    read (fun s =>
+    write (s + 1)
+    ret).
+
+  Definition post (n : nat) (s : S) : bool :=
+    beq_nat n s.
+
+  Definition result (n : nat) : bool :=
+    Choose.check m (post n) (Choose.compile @@ List.repeat process n) 0.
+End Increment.
+
 (** * Extraction *)
 Require Import Io.All.
 Require Import Io.System.All.
@@ -199,7 +256,8 @@ Require Import ListString.All.
 Import C.Notations.
 
 Definition result (argv : list LString.t) : C.t System.effect unit :=
-  if Examples.is_ex1_ok then
+  (* if Examples.is_ex1_ok then *)
+  if Increment.result 2 then
     System.log (LString.s "OK")
   else
     System.log (LString.s "error").
