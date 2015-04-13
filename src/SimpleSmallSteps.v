@@ -248,6 +248,53 @@ Module Increment.
     Choose.check m (post n) (Choose.compile @@ List.repeat process n) 0.
 End Increment.
 
+Module AtomicIncrement.
+  Definition S := nat.
+
+  Module Command.
+    Inductive t :=
+    | Increment.
+  End Command.
+
+  Definition E : Effect.t :=
+    Effect.New Command.t (fun c =>
+      match c with
+      | Command.Increment => unit
+      end).
+
+  Definition ret : Sequential.t E :=
+    Sequential.Ret.
+
+  Definition increment (h : Sequential.t E) : Sequential.t E :=
+    Sequential.Call (E := E) Command.Increment (fun _ => h).
+
+  Definition condition (c : Effect.command E) (s : S) : bool :=
+    true.
+
+  Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
+    match c with
+    | Command.Increment => tt
+    end.
+
+  Definition state (c : Effect.command E) (s : S) : S :=
+    match c with
+    | Command.Increment => s + 1
+    end.
+
+  Definition m : Model.t E S :=
+    Model.New condition answer state.
+
+  Definition process : Sequential.t E :=
+    increment
+    ret.
+
+  Definition post (n : nat) (s : S) : bool :=
+    beq_nat n s.
+
+  Definition result (n : nat) : bool :=
+    Choose.check m (post n) (Choose.compile @@ List.repeat process n) 0.
+End AtomicIncrement.
+
 (** * Extraction *)
 Require Import Io.All.
 Require Import Io.System.All.
@@ -257,7 +304,8 @@ Import C.Notations.
 
 Definition result (argv : list LString.t) : C.t System.effect unit :=
   (* if Examples.is_ex1_ok then *)
-  if Increment.result 2 then
+  (* if Increment.result 2 then *)
+  if AtomicIncrement.result 11 then
     System.log (LString.s "OK")
   else
     System.log (LString.s "error").
