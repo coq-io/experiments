@@ -1,3 +1,7 @@
+Require Import Coq.Lists.List.
+
+Import ListNotations.
+
 Module Effect.
   Record t := New {
     command : Type;
@@ -35,6 +39,12 @@ Module Choose.
   Arguments Ret {E}.
   Arguments Call {E} _ _.
   Arguments Choose {E} _ _.
+
+  Fixpoint lift {E} (x : Sequential.t E) : t E :=
+    match x with
+    | Sequential.Ret => Ret
+    | Sequential.Call c h => Choose.Call c (fun a => lift (h a))
+    end.
 
   Module Mix.
     Inductive t {E} : Sequential.t E -> Choose.t E -> Type :=
@@ -82,24 +92,24 @@ Module Choose.
             (make (Sequential.Call c_x h_x) y2)
         end
       end.
+
+    Fixpoint compile {E} {x y} (xy : t x y) : Choose.t E :=
+      match xy with
+      | RetRet => Choose.Ret
+      | RetCall c_y h_y => Choose.Call c_y h_y
+      | RetChoose y1 y2 => Choose.Choose y1 y2
+      | CallRet c_x h_x => Choose.Call c_x (fun a => lift (h_x a))
+      | CallCall c_x _ c_y _ m_x m_y =>
+        Choose.Choose (Choose.Call c_x (fun a => compile (m_x a)))
+          (Choose.Call c_y (fun a => compile (m_y a)))
+      | CallChoose _ _ _ _ m_y1 m_y2 =>
+        Choose.Choose (compile m_y1) (compile m_y2)
+      end.
   End Mix.
 
-  Fixpoint lift {E} (x : Sequential.t E) : t E :=
-    match x with
-    | Sequential.Ret => Ret
-    | Sequential.Call c h => Choose.Call c (fun a => lift (h a))
-    end.
-
-  Fixpoint compile {E} {x : Sequential.t E} {y : Choose.t E} (xy : Mix.t x y)
-    : t E :=
-    match xy with
-    | Mix.RetRet => Ret
-    | Mix.RetCall c_y h_y => Call c_y h_y
-    | Mix.RetChoose y1 y2 => Choose y1 y2
-    | Mix.CallRet c_x h_x => Call c_x (fun a => lift (h_x a))
-    | Mix.CallCall c_x _ c_y _ m_x m_y =>
-      Choose (Call c_x (fun a => compile (m_x a)))
-        (Call c_y (fun a => compile (m_y a)))
-    | Mix.CallChoose _ _ _ _ m_y1 m_y2 => Choose (compile m_y1) (compile m_y2)
+  Fixpoint compile {E} (xs : Concurrent.t E) : Choose.t E :=
+    match xs with
+    | [] => Ret
+    | x :: xs => Mix.compile (Mix.make x (compile xs))
     end.
 End Choose.
