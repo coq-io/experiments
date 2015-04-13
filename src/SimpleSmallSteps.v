@@ -11,7 +11,7 @@ End Effect.
 
 Module Model.
   Record t (E : Effect.t) (S : Type) := New {
-    condition : Effect.command E -> S -> Prop;
+    condition : Effect.command E -> S -> bool;
     answer : forall c, S -> Effect.answer E c;
     state : Effect.command E -> S -> S }.
   Arguments New {E S} _ _ _.
@@ -114,26 +114,25 @@ Module Choose.
     | x :: xs => Mix.compile (Mix.make x (compile xs))
     end.
 
-  Fixpoint is_not_stuck {E S} (dec : Effect.command E -> S -> bool)
-    (x : Choose.t E) (s : S) : bool :=
+  Fixpoint is_not_stuck {E S} (m : Model.t E S) (x : Choose.t E) (s : S)
+    : bool :=
     match x with
     | Ret => true
-    | Call c _ => dec c s
-    | Choose x1 x2 => orb (is_not_stuck dec x1 s) (is_not_stuck dec x2 s)
+    | Call c _ => Model.condition m c s
+    | Choose x1 x2 => orb (is_not_stuck m x1 s) (is_not_stuck m x2 s)
     end.
 
-  Fixpoint check {E S} (m : Model.t E S) (dec : Effect.command E -> S -> bool)
-    (x : Choose.t E) (s : S) : bool :=
+  Fixpoint check {E S} (m : Model.t E S) (x : Choose.t E) (s : S) : bool :=
     match x with
     | Ret => true
     | Call c h =>
-      if dec c s then
+      if Model.condition m c s then
         let a := Model.answer m c s in
         let s := Model.state m c s in
-        andb (is_not_stuck dec (h a) s) (check m dec (h a) s)
+        andb (is_not_stuck m (h a) s) (check m (h a) s)
       else
         true
-    | Choose x1 x2 => andb (check m dec x1 s) (check m dec x2 s)
+    | Choose x1 x2 => andb (check m x1 s) (check m x2 s)
     end.
 End Choose.
 
@@ -158,11 +157,11 @@ Module Examples.
   Definition unlock (h : Sequential.t E) : Sequential.t E :=
     Sequential.Call (E := E) Command.Unlock (fun _ => h).
 
-  Module Condition.
-    Inductive t : Effect.command E -> S -> Prop :=
-    | Lock : t Command.Lock false
-    | Unlock : t Command.Unlock true.
-  End Condition.
+  Definition condition (c : Effect.command E) (s : S) : bool :=
+    match (c, s) with
+    | (Command.Lock, false) | (Command.Unlock, true) => true
+    | (Command.Lock, true) | (Command.Unlock, false) => false
+    end.
 
   Definition answer (c : Effect.command E) (s : S) : Effect.answer E c :=
     tt.
@@ -174,13 +173,7 @@ Module Examples.
     end.
 
   Definition m : Model.t E S :=
-    Model.New Condition.t answer state.
-
-  Definition dec (c : Effect.command E) (s : S) : bool :=
-    match (c, s) with
-    | (Command.Lock, false) | (Command.Unlock, true) => true
-    | (Command.Lock, true) | (Command.Unlock, false) => false
-    end.
+    Model.New condition answer state.
 
   Fixpoint ex1 (n : nat) : Concurrent.t E :=
     match n with
@@ -191,7 +184,7 @@ Module Examples.
       ret) :: ex1 n
     end.
 
-  Definition is_ex1_ok := Choose.check m dec (Choose.compile @@ ex1 11) false.
+  Definition is_ex1_ok := Choose.check m (Choose.compile @@ ex1 11) false.
 
   (* Time Compute is_ex1_ok. *)
 End Examples.
