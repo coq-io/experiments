@@ -413,6 +413,28 @@ Module Database.
 
   Definition m (n : nat) : Model.t E S :=
     Model.New (condition n) answer (state n).
+
+  Definition process_write (id : nat) : Sequential.t E :=
+    Sequential.Call (E := E) (Command.UpdateSend id) (fun _ =>
+    Sequential.Call (E := E) (Command.ReceiveAck id) (fun _ =>
+    Sequential.Ret)).
+
+  Definition process_read (id : nat) : Sequential.t E :=
+    Sequential.Call (E := E) (Command.Receive id) (fun _ =>
+    Sequential.Call (E := E) Command.Ack (fun _ =>
+    Sequential.Ret)).
+
+  Fixpoint processes_read (n : nat) : Concurrent.t E :=
+    match n with
+    | O => []
+    | Datatypes.S n => process_read n :: processes_read n
+    end.
+
+  Definition ex (n : nat) : Concurrent.t E :=
+    process_write n :: processes_read n.
+
+  Definition result (n : nat) : bool :=
+    Choose.check (m (n + 1)) (fun _ => true) (Choose.compile @@ ex n) (init (n + 1)).
 End Database.
 
 (** * Extraction *)
@@ -426,7 +448,8 @@ Definition result (argv : list LString.t) : C.t System.effect unit :=
   (* if Examples.is_ex1_ok then *)
   (* if Increment.result 2 then *)
   (* if AtomicIncrement.result 11 then *)
-  if SimpleChannel.result then
+  (* if SimpleChannel.result then *)
+  if Database.result 0 then
     System.log (LString.s "OK")
   else
     System.log (LString.s "error").

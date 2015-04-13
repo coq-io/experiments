@@ -6,7 +6,7 @@ DataBase example
 After the description in Valmari LNCS 483
 */
 
-#define N 12
+#define N 10
 #define PID byte
 
 PID holder = N;
@@ -41,7 +41,10 @@ proctype P(byte i)
    :: /* else -> */
       
       /* receive message*/ 
-      d_step{(holder < N) && up[i] -> up[i] = false} ->
+      d_step{
+        (holder < N) && up[i] ->
+        up[i] = false}
+      ;
   
       /* send acknowledgment */
       ack[holder]++; 
