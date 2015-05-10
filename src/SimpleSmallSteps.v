@@ -454,5 +454,5 @@ Definition result (argv : list LString.t) : C.t System.effect unit :=
   else
     System.log (LString.s "error").
 
-Definition main := Extraction.run result.
+Definition main := Extraction.launch result.
 Extraction "extraction/main" main.

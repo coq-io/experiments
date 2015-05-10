@@ -1,7 +1,7 @@
 (** Callbacks with a join. But the join is stronger than the let ... *)
 Require Import Io.All.
 
-Module C.
+(*Module C.
   Inductive t (E : Effect.t) : Type -> Type :=
   | Ret : forall (A : Type), A -> t E A
   | Call : forall (A : Type) (c : Effect.command E),
@@ -24,4 +24,4 @@ Module C.
     | Io.C.First _ _ x y => fun k =>
       First (compile x Ret) (compile y Ret) (fun xy => k xy)
     end.
-End C.
+End C.*)

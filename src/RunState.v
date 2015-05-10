@@ -51,9 +51,11 @@ Module Get.
   Definition get : C.t E nat :=
     C.Call (E := E) Command.Get.
 
-  Definition spec_get (n : nat) : Spec.t get n.
-    apply (Spec.Call E Command.Get n).
-  Qed.
+  Module Run.
+    Definition get (n : nat) : Run.t get n.
+      apply (Run.Call E Command.Get n).
+    Qed.
+  End Run.
 
   Definition eval_command (c : Full.Command.t) (s : S)
     : C.t E (Effect.answer Full.E c * S) :=
@@ -91,25 +93,27 @@ Fixpoint program (steps : nat) : C.t Full.E unit :=
     Full.store n
   end.
 
-Definition spec_1 (n : nat) : Spec.t (Get.eval (program 1) []) (tt, [n]).
-  simpl.
-  eapply Spec.Let.
-  - apply Spec.Ret.
-  - eapply Spec.Let.
-    + eapply Spec.Let.
-      * apply (Get.spec_get n).
-      * apply Spec.Ret.
-    + apply Spec.Ret.
-Defined.
+Module Run.
+  Definition program_one (n : nat) : Run.t (Get.eval (program 1) []) (tt, [n]).
+    simpl.
+    eapply Run.Let.
+    - apply Run.Ret.
+    - eapply Run.Let.
+      + eapply Run.Let.
+        * apply (Get.Run.get n).
+        * apply Run.Ret.
+      + apply Run.Ret.
+  Defined.
 
-Fixpoint spec_n (l : list nat)
-  : Spec.t (Get.eval (program (List.length l)) []) (tt, l).
-  destruct l as [| n l]; simpl.
-  - apply Spec.Ret.
-  - eapply Spec.Let.
-    + apply spec_n.
-    + simpl.
-      eapply Spec.Let.
-      * eapply Spec.Let; [apply (Get.spec_get n) | apply Spec.Ret].
-      * apply Spec.Ret.
-Defined.
+  Fixpoint program_n (l : list nat)
+    : Run.t (Get.eval (program (List.length l)) []) (tt, l).
+    destruct l as [| n l]; simpl.
+    - apply Run.Ret.
+    - eapply Run.Let.
+      + apply program_n.
+      + simpl.
+        eapply Run.Let.
+        * eapply Run.Let; [apply (Get.Run.get n) | apply Run.Ret].
+        * apply Run.Ret.
+  Defined.
+End Run.

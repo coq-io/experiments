@@ -42,7 +42,7 @@ Module LockFree.
   | CallLock : forall (l : L), state l -> t state (C.Call (E := effect L) (Command.Lock l)) (State.lock state l).
 End LockFree.*)
 
-Module Trace.
+(*Module Trace.
   Inductive t (L : Type) :=
   | Ret : t L
   | Lock : L -> t L
@@ -85,7 +85,7 @@ Module Trace.
       | inr (y, trace_y) => ret (inr y, First (inr trace_y))
       end
     end.
-End Trace.
+End Trace.*)
 
 Module Examples.
   Module LockFree.
