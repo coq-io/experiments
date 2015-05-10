@@ -4,6 +4,15 @@ Require Import Io.All.
 Import C.Notations.
 Import ListNotations.
 
+Module Run.
+  Definition let_ret {E A B} {v : A} {f : A -> C.t E B} {y : B}
+    (run_f_v : Run.t (f v) y) : Run.t (C.Let _ _ (C.Ret _ v) f) y.
+    eapply Run.Let.
+    - apply Run.Ret.
+    - exact run_f_v.
+  Defined.
+End Run.
+
 Module Full.
   Module Command.
     Inductive t :=
@@ -51,13 +60,7 @@ Module Get.
   Definition get : C.t E nat :=
     C.Call (E := E) Command.Get.
 
-  Module Run.
-    Definition get (n : nat) : Run.t get n.
-      apply (Run.Call E Command.Get n).
-    Qed.
-  End Run.
-
-  Definition eval_command (c : Full.Command.t) (s : S)
+  Definition command (c : Full.Command.t) (s : S)
     : C.t E (Effect.answer Full.E c * S) :=
     match c with
     | Full.Command.Get =>
@@ -70,7 +73,7 @@ Module Get.
   Fixpoint eval {A} (x : C.t Full.E A) (s : S) : C.t E (A * S) :=
     match x with
     | C.Ret _ v => ret (v, s)
-    | C.Call c => eval_command c s
+    | C.Call c => command c s
     | C.Let _ _ x f =>
       let! v_x_s := eval x s in
       let (v_x, s) := v_x_s in
@@ -82,38 +85,49 @@ Module Get.
       | ((v_x, s_x), (v_y, s_y)) => ret ((v_x, v_y), s_x ++ s_y ++ s)
       end
     end.
+
+  Module Run.
+    Definition get (n : nat) : Run.t get n.
+      apply (Run.Call E Command.Get n).
+    Qed.
+
+    Definition eval_get (n : nat) (s : S) : Run.t (eval Full.get s) (n, s).
+      eapply Run.Let.
+      - apply get.
+      - apply Run.Ret.
+    Defined.
+  End Run.
 End Get.
 
-Fixpoint program (steps : nat) : C.t Full.E unit :=
-  match steps with
-  | O => ret tt
-  | S steps =>
-    do! program steps in
-    let! n := Full.get in
-    Full.store n
-  end.
+Module Example.
+  Fixpoint program (steps : nat) : C.t Full.E unit :=
+    match steps with
+    | O => ret tt
+    | S steps =>
+      do! program steps in
+      let! n := Full.get in
+      Full.store n
+    end.
 
-Module Run.
-  Definition program_one (n : nat) : Run.t (Get.eval (program 1) []) (tt, [n]).
-    simpl.
-    eapply Run.Let.
-    - apply Run.Ret.
-    - eapply Run.Let.
-      + eapply Run.Let.
-        * apply (Get.Run.get n).
-        * apply Run.Ret.
-      + apply Run.Ret.
-  Defined.
+  Module Run.
+    Definition program_one (n : nat) : Run.t (Get.eval (program 1) []) (tt, [n]).
+      simpl.
+      apply Run.let_ret.
+      eapply Run.Let.
+      - apply Get.Run.eval_get.
+      - apply Run.Ret.
+    Defined.
 
-  Fixpoint program_n (l : list nat)
-    : Run.t (Get.eval (program (List.length l)) []) (tt, l).
-    destruct l as [| n l]; simpl.
-    - apply Run.Ret.
-    - eapply Run.Let.
-      + apply program_n.
-      + simpl.
-        eapply Run.Let.
-        * eapply Run.Let; [apply (Get.Run.get n) | apply Run.Ret].
-        * apply Run.Ret.
-  Defined.
-End Run.
+    Fixpoint program_n (l : list nat)
+      : Run.t (Get.eval (program (List.length l)) []) (tt, l).
+      destruct l as [| n l]; simpl.
+      - apply Run.Ret.
+      - eapply Run.Let.
+        + apply program_n.
+        + simpl.
+          eapply Run.Let.
+          * apply (Get.Run.eval_get n).
+          * apply Run.Ret.
+    Defined.
+  End Run.
+End Example.
