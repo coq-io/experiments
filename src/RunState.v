@@ -4,15 +4,6 @@ Require Import Io.All.
 Import C.Notations.
 Import ListNotations.
 
-Module Run.
-  Definition let_ret {E A B} {v : A} {f : A -> C.t E B} {y : B}
-    (run_f_v : Run.t (f v) y) : Run.t (C.Let _ _ (C.Ret _ v) f) y.
-    eapply Run.Let.
-    - apply Run.Ret.
-    - exact run_f_v.
-  Defined.
-End Run.
-
 Module Full.
   Module Command.
     Inductive t :=
@@ -87,14 +78,16 @@ Module Get.
     end.
 
   Module Run.
+    Import Io.Run.
+
     Definition get (n : nat) : Run.t get n.
-      apply (Run.Call E Command.Get n).
+      apply (Call E Command.Get n).
     Qed.
 
     Definition eval_get (n : nat) (s : S) : Run.t (eval Full.get s) (n, s).
-      eapply Run.Let.
+      eapply Let.
       - apply get.
-      - apply Run.Ret.
+      - apply Ret.
     Defined.
   End Run.
 End Get.
@@ -110,24 +103,26 @@ Module Example.
     end.
 
   Module Run.
+    Import Io.Run.
+
     Definition program_one (n : nat) : Run.t (Get.eval (program 1) []) (tt, [n]).
       simpl.
-      apply Run.let_ret.
-      eapply Run.Let.
+      apply let_ret.
+      eapply Let.
       - apply Get.Run.eval_get.
-      - apply Run.Ret.
+      - apply Ret.
     Defined.
 
     Fixpoint program_n (l : list nat)
       : Run.t (Get.eval (program (List.length l)) []) (tt, l).
       destruct l as [| n l]; simpl.
-      - apply Run.Ret.
-      - eapply Run.Let.
+      - apply Ret.
+      - eapply Let.
         + apply program_n.
         + simpl.
-          eapply Run.Let.
+          eapply Let.
           * apply (Get.Run.eval_get n).
-          * apply Run.Ret.
+          * apply Ret.
     Defined.
   End Run.
 End Example.
