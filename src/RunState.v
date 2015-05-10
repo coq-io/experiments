@@ -51,6 +51,10 @@ Module Get.
   Definition get : C.t E nat :=
     C.Call (E := E) Command.Get.
 
+  Definition spec_get (n : nat) : Spec.t get n.
+    apply (Spec.Call E Command.Get n).
+  Qed.
+
   Definition eval_command (c : Full.Command.t) (s : S)
     : C.t E (Effect.answer Full.E c * S) :=
     match c with
@@ -62,7 +66,7 @@ Module Get.
     end.
 
   Fixpoint eval {A} (x : C.t Full.E A) (s : S) : C.t E (A * S) :=
-    match x in C.t _ A return C.t E (A * S) with
+    match x with
     | C.Ret _ v => ret (v, s)
     | C.Call c => eval_command c s
     | C.Let _ _ x f =>
@@ -78,11 +82,34 @@ Module Get.
     end.
 End Get.
 
-Fixpoint program (steps : nat) : C.t Full.E (list nat) :=
+Fixpoint program (steps : nat) : C.t Full.E unit :=
   match steps with
-  | O => Full.read
+  | O => ret tt
   | S steps =>
+    do! program steps in
     let! n := Full.get in
-    do! Full.store n in
-    program steps
+    Full.store n
   end.
+
+Definition spec_1 (n : nat) : Spec.t (Get.eval (program 1) []) (tt, [n]).
+  simpl.
+  eapply Spec.Let.
+  - apply Spec.Ret.
+  - eapply Spec.Let.
+    + eapply Spec.Let.
+      * apply (Get.spec_get n).
+      * apply Spec.Ret.
+    + apply Spec.Ret.
+Defined.
+
+Fixpoint spec_n (l : list nat)
+  : Spec.t (Get.eval (program (List.length l)) []) (tt, l).
+  destruct l as [| n l]; simpl.
+  - apply Spec.Ret.
+  - eapply Spec.Let.
+    + apply spec_n.
+    + simpl.
+      eapply Spec.Let.
+      * eapply Spec.Let; [apply (Get.spec_get n) | apply Spec.Ret].
+      * apply Spec.Ret.
+Defined.

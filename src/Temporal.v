@@ -120,7 +120,7 @@ Module CCS.
       let! _ := join (compile x) (compile y) in
       ret tt
     | First x y =>
-      let! _ := first (compile x) (compile y) in
+      let! _ := choose (compile x) (compile y) in
       ret tt
     end.
 End CCS.

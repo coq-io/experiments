@@ -35,9 +35,9 @@ Module Counter.
       let (n_x, x) := run n x in
       let (n_y, y) := run n y in
       (max n_x n_y, (x, y))
-    | C.First _ _ x y =>
+    | C.Choose _ x y =>
       let (n, x) := run n x in
-      (n, inl x)
+      (n, x)
     end.
 End Counter.
 

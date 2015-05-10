@@ -15,16 +15,16 @@ Module SmallStep.
     t y y' -> t (C.Join _ _ x y) (C.Join _ _ x y')
   | Join : forall (A B : Type) (v_x : A) (v_y : B),
     t (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) (C.Ret _ (v_x, v_y))
-  | FirstLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A),
-    t x x' -> t (C.First _ _ x y) (C.First _ _ x' y)
-  | FirstRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B),
-    t y y' -> t (C.First _ _ x y) (C.First _ _ x y')
-  | FirstInl : forall (A B : Type) (v_x : A) (y : C.t E B),
-    t (C.First _ _ (C.Ret _ v_x) y) (C.Ret _ (inl v_x))
-  | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B),
-    t (C.First _ _ x (C.Ret _ v_y)) (C.Ret _ (inr v_y)).
+  | ChooseLeft : forall (A : Type) (x : C.t E A) (y : C.t E A) (x' : C.t E A),
+    t x x' -> t (C.Choose _ x y) (C.Choose _ x' y)
+  | ChooseRight : forall (A : Type) (x : C.t E A) (y : C.t E A) (y' : C.t E A),
+    t y y' -> t (C.Choose _ x y) (C.Choose _ x y')
+  | ChooseInl : forall (A : Type) (v_x : A) (y : C.t E A),
+    t (C.Choose _ (C.Ret _ v_x) y) (C.Ret _ v_x)
+  | ChooseInr : forall (A : Type) (x : C.t E A) (v_y : A),
+    t (C.Choose _ x (C.Ret _ v_y)) (C.Ret _ v_y).
 
-  Fixpoint non_blocking {E : Effect.t} (a : forall c, Effect.answer E c)
+  (*Fixpoint non_blocking {E : Effect.t} (a : forall c, Effect.answer E c)
     {A : Type} (x : C.t E A)
     : (exists v_x : A, x = C.Ret _ v_x) \/ (exists x' : C.t E A, t x x').
     destruct x as [A v_x | c | A B x f | A B x y | A B x y].
@@ -60,11 +60,11 @@ Module SmallStep.
       + destruct H_x as [v_x H_x].
         exists (C.Ret _ (inl v_x)).
         rewrite H_x.
-        apply FirstInl.
+        apply ChooseInl.
       + destruct H_x as [x' H_x].
-        exists (C.First _ _ x' y).
-        now apply FirstLeft.
-  Qed.
+        exists (C.Choose _ x' y).
+        now apply ChooseLeft.
+  Qed.*)
 End SmallStep.
 
 Module StateSmallStep.
@@ -91,20 +91,20 @@ Module StateSmallStep.
     t answer state (C.Join _ _ x y) s (C.Join _ _ x y') s'
   | Join : forall (A B : Type) (v_x : A) (v_y : B) (s : S),
     t answer state (C.Join _ _ (C.Ret _ v_x) (C.Ret _ v_y)) s (C.Ret _ (v_x, v_y)) s
-  | FirstLeft : forall (A B : Type) (x : C.t E A) (y : C.t E B) (x' : C.t E A)
+  | ChooseLeft : forall (A : Type) (x : C.t E A) (y : C.t E A) (x' : C.t E A)
     (s s' : S),
     t answer state x s x' s' ->
-    t answer state (C.First _ _ x y) s (C.First _ _ x' y) s'
-  | FirstRight : forall (A B : Type) (x : C.t E A) (y : C.t E B) (y' : C.t E B)
+    t answer state (C.Choose _ x y) s (C.Choose _ x' y) s'
+  | ChooseRight : forall (A : Type) (x : C.t E A) (y : C.t E A) (y' : C.t E A)
     (s s' : S),
     t answer state y s y' s' ->
-    t answer state (C.First _ _ x y) s (C.First _ _ x y') s'
-  | FirstInl : forall (A B : Type) (v_x : A) (y : C.t E B) (s : S),
-    t answer state (C.First _ _ (C.Ret _ v_x) y) s (C.Ret _ (inl v_x)) s
-  | FirstInr : forall (A B : Type) (x : C.t E A) (v_y : B) (s : S),
-    t answer state (C.First _ _ x (C.Ret _ v_y)) s (C.Ret _ (inr v_y)) s.
+    t answer state (C.Choose _ x y) s (C.Choose _ x y') s'
+  | ChooseInl : forall (A : Type) (v_x : A) (y : C.t E A) (s : S),
+    t answer state (C.Choose _ (C.Ret _ v_x) y) s (C.Ret _ v_x) s
+  | ChooseInr : forall (A : Type) (x : C.t E A) (v_y : A) (s : S),
+    t answer state (C.Choose _ x (C.Ret _ v_y)) s (C.Ret _ v_y) s.
 
-  Fixpoint non_blocking {E : Effect.t} {S : Type}
+  (*Fixpoint non_blocking {E : Effect.t} {S : Type}
     (answer : forall c, S -> Effect.answer E c)
     (state : Effect.command E -> S -> S) {A : Type} (x : C.t E A) (s : S)
     {struct x} : (exists v_x : A, x = C.Ret _ v_x) \/
@@ -149,10 +149,10 @@ Module StateSmallStep.
         exists (C.Ret _ (inl v_x)).
         exists s.
         rewrite H_x.
-        apply FirstInl.
+        apply ChooseInl.
       + destruct H_x as [x' H_x]; destruct H_x as [s' H_x].
-        exists (C.First _ _ x' y).
+        exists (C.Choose _ x' y).
         exists s'.
-        now apply FirstLeft.
-  Qed.
+        now apply ChooseLeft.
+  Qed.*)
 End StateSmallStep.
