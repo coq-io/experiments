@@ -7,6 +7,7 @@ src/ConstraintSmallSteps.v
 src/Glue.v
 src/Lock.v
 src/Positive.v
+src/RunState.v
 src/Sequential.v
 src/SimpleSmallSteps.v
 src/SmallSteps.v
