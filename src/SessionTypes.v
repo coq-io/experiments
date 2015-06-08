@@ -34,6 +34,22 @@ Module Session.
     | Join : forall A B (x : C.t E A) (y : C.t E B) (s_x : Session.t E A)
       (s_y : Session.t E B), t x s_x -> t y s_y ->
       t (C.Join _ _ x y) (Session.Join s_x s_y).
+
+    Fixpoint eval_is_valid {E A} (x : C.t E A) : t x (Session.eval x).
+      destruct x; simpl.
+      - apply Ret.
+      - apply Call.
+      - apply Let.
+        + apply eval_is_valid.
+        + intro.
+          apply eval_is_valid.
+      - apply Choose.
+        + apply eval_is_valid.
+        + apply eval_is_valid.
+      - apply Join.
+        + apply eval_is_valid.
+        + apply eval_is_valid.
+    Qed.
   End Valid.
 End Session.
 
@@ -48,7 +64,7 @@ Module Example.
   Import C.Notations.
   Local Open Scope char.
 
-  Definition your_name (argv : list LString.t) : C.t System.effect unit :=
+  Definition your_name : C.t System.effect unit :=
     do! System.log (LString.s "What is your name?") in
     let! name := System.read_line in
     match name with
@@ -56,18 +72,20 @@ Module Example.
     | Some name => System.log (LString.s "Hello " ++ name ++ LString.s "!")
     end.
 
-  (* Compute Session.eval (your_name []). *)
+  Definition your_name_session : Session.t System.effect unit :=
+    Session.Let (Session.eval (System.log (LString.s "What is your name?"))) (fun _ =>
+    Session.Let (Session.eval System.read_line) (fun name =>
+    match name with
+    | None => Session.Ret unit
+    | Some name => Session.eval (System.log (LString.s "Hello " ++ name ++ LString.s "!"))
+    end)).
 
-  (*Definition your_name_session
-    : Session.eval (your_name []) =
-      Session.Let (Session.eval (System.log _)) (fun _ =>
-      Session.Let (Session.eval System.read_line) (fun name =>
-      match name with
-      | None => _
-      | Some name => _
-      end))
-    := eq_refl.*)
-
-  (*Definition your_name_session : Session.t System.effect unit :=
-    Session.Let (Session.Call )*)
+  Lemma your_name_session_is_valid
+    : Session.Valid.t your_name your_name_session.
+    apply Session.Valid.Let; [apply Session.Valid.eval_is_valid |]; intro.
+    apply Session.Valid.Let; [apply Session.Valid.eval_is_valid |]; intro name.
+    destruct name as [name |].
+    - apply Session.Valid.eval_is_valid.
+    - apply Session.Valid.Ret.
+  Qed.
 End Example.
