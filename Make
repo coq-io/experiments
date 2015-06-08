@@ -9,6 +9,7 @@ src/Lock.v
 src/Positive.v
 src/RunState.v
 src/Sequential.v
+src/SessionTypes.v
 src/SimpleSmallSteps.v
 src/SmallSteps.v
 src/State.v
