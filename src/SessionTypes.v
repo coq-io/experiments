@@ -50,6 +50,27 @@ Module Session.
         + apply eval_is_valid.
         + apply eval_is_valid.
     Qed.
+
+    (*Fixpoint unicity {E A} (x : C.t E A) (s : Session.t E A)
+      (H : t x s) : s = Session.eval x.
+      destruct x; simpl.
+      - now inversion_clear H.
+      - refine (
+          match H in t x s return
+            match x with
+            | C.Call c => s = Session.Call c
+            | _ => True
+            end : Prop with
+          | Call _ => _
+          | _ => I
+          end).
+      - inversion_clear H.
+    Qed.
+
+    Fixpoint unicity {E A} (x : C.t E A) (s s' : Session.t E A)
+      (H : t x s) (H' : t x s') : s = s'.
+      destruct x.
+    Qed.*)
   End Valid.
 End Session.
 
