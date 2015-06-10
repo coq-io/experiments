@@ -17,7 +17,7 @@ Arguments ChooseRight {E} _.
 Arguments Join {E} _ _.
 
 Module Valid.
-  Inductive t {E} : forall {A}, C.t E A -> Trace.t E -> A -> Prop :=
+  Inductive t {E} : forall {A}, C.t E A -> Trace.t E -> A -> Type :=
   | Ret : forall A (v : A), t (C.Ret A v) Trace.Ret v
   | Call : forall c (a : Effect.answer E c), t (C.Call c) (Trace.Call c a) a
   | Let : forall A B (x : C.t E A) (f : A -> C.t E B) (t_x t_y : Trace.t E)
@@ -32,43 +32,50 @@ Module Valid.
     (v_x : A) (v_y : B),
     t x t_x v_x -> t y t_y v_y ->
     t (C.Join _ _ x y) (Trace.Join t_x t_y) (v_x, v_y).
-
-(*Require Import JMeq.
-
-  Fixpoint unicity {E A} (x : C.t E A) (t_x : Trace.t E) (v_x v'_x : A)
-    (H : t x t_x v_x) (H' : t x t_x v'_x) : v_x = v'_x.
-    apply JMeq_eq.
-    destruct H.
-    - exact (
-        match H' in t x t_x v'_x return
-          match x with
-          | C.Ret _ v => JMeq v v'_x
-          | _ => True
-          end : Prop with
-        | Ret _ _ => JMeq_refl
-        | _ => I
-        end).
-    - exact (
-        match H' in t x t_x v'_x return
-          match t_x with
-          | Trace.Call _ a => JMeq a v'_x
-          | _ => True
-          end : Prop with
-        | Call _ _ => JMeq_refl
-        | _ => I
-        end).
-    - generalize H; clear H.
-      generalize H0; clear H0.
-      refine (
-        match H' in t x t_x v'_x return
-          match x with
-          | C.Let _ _ x f => t (f v_x) t_y v_y -> t x t_x v_x -> JMeq v_y v'_x
-          | _ => True
-          end : Prop with
-        | Let _ _ _ _ _ _ _ _ _ _ => _
-        | _ => I
-        end).
-      replace 
-      apply (JMeq_trans (unicity) ()).
-  Qed.*)
 End Valid.
+
+Fixpoint of_run {E A} (x : C.t E A) (v_x : A) (r_x : Run.t x v_x)
+  : {t_x : t E & Valid.t x t_x v_x}.
+  destruct r_x.
+  - exists Trace.Ret.
+    apply Valid.Ret.
+  - exists (Trace.Call c answer).
+    apply Valid.Call.
+  - destruct (of_run _ _ _ _ r_x1) as [t_x H_x].
+    destruct (of_run _ _ _ _ r_x2) as [t_y H_y].
+    exists (Trace.Let t_x t_y).
+    now apply Valid.Let with (v_x := x).
+  - destruct (of_run _ _ _ _ r_x) as [t_x1 H_x1].
+    exists (Trace.ChooseLeft t_x1).
+    now apply Valid.ChooseLeft.
+  - destruct (of_run _ _ _ _ r_x) as [t_x2 H_x2].
+    exists (Trace.ChooseRight t_x2).
+    now apply Valid.ChooseRight.
+  - destruct (of_run _ _ _ _ r_x1) as [t_x H_x].
+    destruct (of_run _ _ _ _ r_x2) as [t_y H_y].
+    exists (Trace.Join t_x t_y).
+    now apply Valid.Join.
+Defined.
+
+Fixpoint to_run {E A} (x : C.t E A) (t_x : Trace.t E) (v_x : A)
+  (H : Valid.t x t_x v_x) : Run.t x v_x.
+  destruct H.
+  - apply Run.Ret.
+  - apply Run.Call.
+  - eapply Run.Let.
+    + eapply to_run.
+      apply H.
+    + eapply to_run.
+      apply H0.
+  - apply Run.ChooseLeft.
+    eapply to_run.
+    apply H.
+  - apply Run.ChooseRight.
+    eapply to_run.
+    apply H.
+  - apply Run.Join.
+    + eapply to_run.
+      apply H.
+    + eapply to_run.
+      apply H0.
+Defined.
