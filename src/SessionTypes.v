@@ -1,3 +1,4 @@
+(** Experiments around session types for the computations. *)
 Require Import Io.All.
 
 Module Session.
