@@ -19,5 +19,18 @@ Definition cat (argv : list LString.t) : C.t System.effect unit :=
   | _ => System.log (LString.s "One parameter expected.")
   end.
 
-Definition main := Extraction.launch cat.
+Require Import Coq.ZArith.ZArith.
+
+(** A wrapper for the `uname` command. *)
+Definition uname (argv : list LString.t) : C.t System.effect unit :=
+  let! os := System.eval [LString.s "uname"; LString.s "-o"] in
+  let! machine := System.eval [LString.s "uname"; LString.s "-m"] in
+  match (os , machine) with
+  | (Some (0%Z, os, _), Some (0%Z, machine, _)) =>
+    do! System.log (LString.s "OS: " ++ LString.trim os) in
+    System.log (LString.s "Machine: " ++ LString.trim machine)
+  | _ => ret tt
+  end.
+
+Definition main := Extraction.launch uname.
 Extraction "extraction/main" main.
