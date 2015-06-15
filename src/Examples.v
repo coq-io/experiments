@@ -16,7 +16,7 @@ Definition cat (argv : list LString.t) : C.t System.effect unit :=
     | None => System.log (LString.s "Cannot read the file.")
     | Some content => System.log content
     end
-  | _ => System.log (LString.s "One parameter expected.")
+  | _ => System.log (LString.s "Expected one parameter.")
   end.
 
 Require Import Coq.ZArith.ZArith.
