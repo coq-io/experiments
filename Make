@@ -4,6 +4,7 @@ src/Atm.v
 src/CallbackJoin.v
 src/Callbacks.v
 src/Compile.v
+src/Compose.v
 src/ConstraintSmallSteps.v
 src/Examples.v
 src/Glue.v
@@ -18,3 +19,4 @@ src/State.v
 src/SuperMarket.v
 src/Temporal.v
 src/Trace.v
+src/UseCase.v
