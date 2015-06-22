@@ -1,4 +1,5 @@
-(** Formal definition of a use case. *)
+(** Formal definition of a use case, using a set of parameters plus a set of
+    values. *)
 Require Import Coq.Logic.JMeq.
 Require Import Io.All.
 
@@ -20,26 +21,6 @@ Definition run {E A} {x : C.t E A} (u : UseCase.t x) (p : parameter u)
   destruct (value p) as [v r].
   exact r.
 Defined.
-
-(*Module EqRun.
-  Inductive t {E} : forall {A1 A2} {x1 : C.t E A1} {x2 : C.t E A2} {v1 v2},
-    Run.t x1 v1 -> Run.t x2 v2 -> Prop :=
-  | Ret : forall A (v : A), t (Run.Ret v) (Run.Ret v)
-  | Call : forall c a, t (Run.Call c a) (Run.Call c a).
-End EqRun.
-
-Lemma call_uniq {E c a} (r : Run.t (C.Call (E := E) c) a)
-  : EqRun.t r (Run.Call _ a).
-  refine (
-    match r in Run.t x _ return
-      match x with
-      | C.Call c => EqRun.t r (Run.Call _ a)
-      | _ => True
-      end : Prop with
-    | Run.Call _ _ => _
-    | _ => I
-    end).
-Qed.*)
 
 Module Le.
   Definition t {E A} {x : C.t E A} (u1 u2 : UseCase.t x) : Prop :=
@@ -130,20 +111,6 @@ Module Top.
     - exact (run (u_f (result u_x p_x)) p_f).
   Defined.
 
-  (*Definition _let {E A B} {x : C.t E A} {f : A -> C.t E B} (u_x : UseCase.t x)
-    (u_f : forall v_x, UseCase.t (f v_x)) : UseCase.t (C.Let A B x f).
-    refine {|
-      parameter := {p_x : parameter u_x & parameter (u_f (projT1 (run u_x p_x)))};
-      run := _ |}.
-    intro p.
-    destruct p as [p_x p_f].
-    eexists.
-    eapply Run.Let.
-    - destruct (run u_x p_x).
-      exact t0.
-    - exact (run (u_f _) p_f).
-  Defined.*)
-
   Definition choose {E A} {x1 x2 : C.t E A} (u1 : UseCase.t x1)
     (u2 : UseCase.t x2) : UseCase.t (C.Choose A x1 x2).
     refine {|
@@ -198,65 +165,5 @@ Module Top.
       | Run.Ret _ _ => JMeq_refl
       | _ => I
       end).
-  Qed.
-
-  (*Lemma call_uniq {E c a} (r : Run.t (C.Call (E := E) c) a)
-    : JMeq r (Run.Call _ a).
-  Admitted.*)
-
-  Axiom falso : False.
-
-  (*Fixpoint universal_p {E A} {x : C.t E A} {v} (r : Run.t x v)
-    : parameter (new x).
-    destruct r; simpl.
-    - exact tt.
-    - exact answer.
-    - exists (universal_p _ _ _ _ r1).
-      eapply universal_p.
-      
-      apply (universal_p _ _ (c_f .
-      
-  Defined.*)
-
-  Fixpoint greatest {E A} {x : C.t E A} {v} (r : Run.t x v)
-    : exists p, existT _ v r = value (new x) p.
-    destruct r; simpl.
-    - exists tt.
-      reflexivity.
-    - exists answer.
-      reflexivity.
-    - destruct (greatest _ _ _ _ r1) as [p1 H1].
-      assert (r2' : Run.t (c_f (result (new c_x) p1)) y) by destruct falso.
-(*      replace x with (result (new c_x) p1) in r2 by destruct falso.*)
-      destruct (greatest _ _ (c_f (result (new c_x) p1)) y r2') as [p2 H2].
-      exists (existT _ p1 p2).
-      replace y with (result (new (c_f (result (new c_x) p1))) p2) by destruct falso.
-  Qed.
-
-  Fixpoint greatest {E A} {x : C.t E A} {v} (r : Run.t x v)
-    : exists p, JMeq r (run (new x) p).
-    destruct r; simpl.
-    - exists tt.
-      apply JMeq_refl.
-    - exists answer.
-      apply JMeq_refl.
-    - destruct (greatest _ _ _ _ r1) as [p_x H_x].
-      assert (r_f : Run.t (c_f (result (new c_x) p_x)) y).
-      destruct falso.
-      destruct (greatest _ _ _ _ r_f) as [p_f H_f].
-      exists (existT _ p_x p_f).
-      destruct falso.
-    - destruct (greatest _ _ _ _ r) as [p1 H1].
-      exists (inl p1).
-      apply JMeq_congr.
-  Qed.
-
-  Fixpoint greatest {E A} {x : C.t E A} (u : UseCase.t x) : Le.t u (new x).
-    destruct x as [A v | | | |]; simpl.
-    - intro p; exists tt; simpl.
-      apply ret_uniq.
-    - intro p; exists (result u p); simpl.
-      Check run u p.
-
   Qed.
 End Top.

@@ -52,13 +52,13 @@ Module Run.
   Import Io.Run.
 
   Definition main_ok (login password : LString.t) (amount : N) : Run.t main tt.
-    eapply Let; [apply (Call E Command.GetLogin login) |].
-    eapply Let; [apply (Call E Command.GetPassword password) |].
+    eapply Let; [apply (Call (E := E) Command.GetLogin login) |].
+    eapply Let; [apply (Call (E := E) Command.GetPassword password) |].
     eapply Let;
-      [apply (Call E (Command.CheckAuthorization login password) true) |].
-    eapply Let; [apply (Call E Command.GetWithdrawAmount amount) |].
-    eapply Let; [apply (Call E (Command.DoWithdraw amount) true) |].
-    eapply Let; [apply (Call E (Command.GiveMoney amount) true) |].
+      [apply (Call (E := E) (Command.CheckAuthorization login password) true) |].
+    eapply Let; [apply (Call (E := E) Command.GetWithdrawAmount amount) |].
+    eapply Let; [apply (Call (E := E) (Command.DoWithdraw amount) true) |].
+    eapply Let; [apply (Call (E := E) (Command.GiveMoney amount) true) |].
     apply Ret.
   Defined.
 End Run.

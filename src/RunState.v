@@ -81,7 +81,7 @@ Module Get.
     Import Io.Run.
 
     Definition get (n : nat) : Run.t get n.
-      apply (Call E Command.Get n).
+      apply (Call (E := E) Command.Get n).
     Qed.
 
     Definition eval_get (n : nat) (s : S) : Run.t (eval Full.get s) (n, s).
