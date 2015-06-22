@@ -1,7 +1,7 @@
 (** Formal definition of a use case. *)
 Require Import Coq.Logic.JMeq.
 Require Import Io.All.
-Module UseCase.
+
 Record t {E : Effect.t} {A : Type} (x : C.t E A) : Type := New {
   parameter : Type;
   value : parameter -> {v : A & Run.t x v} }.
