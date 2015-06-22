@@ -4,12 +4,22 @@ Require Import Io.All.
 Module UseCase.
 Record t {E : Effect.t} {A : Type} (x : C.t E A) : Type := New {
   parameter : Type;
-  result : parameter -> A;
-  run : forall p, Run.t x (result p) }.
-Arguments New {E A x} _ _ _.
+  value : parameter -> {v : A & Run.t x v} }.
+Arguments New {E A x} _ _.
 Arguments parameter {E A x} _.
-Arguments result {E A x} _ _.
-Arguments run {E A x} _ _.
+Arguments value {E A x} _ _.
+
+Definition result {E A} {x : C.t E A} (u : UseCase.t x) (p : parameter u) : A :=
+  projT1 (value u p).
+
+Definition run {E A} {x : C.t E A} (u : UseCase.t x) (p : parameter u)
+  : Run.t x (result u p).
+  unfold result.
+  destruct u as [parameter value].
+  simpl in *.
+  destruct (value p) as [v r].
+  exact r.
+Defined.
 
 (*Module EqRun.
   Inductive t {E} : forall {A1 A2} {x1 : C.t E A1} {x2 : C.t E A2} {v1 v2},
@@ -34,11 +44,11 @@ Qed.*)
 Module Le.
   Definition t {E A} {x : C.t E A} (u1 u2 : UseCase.t x) : Prop :=
     forall (p1 : parameter u1), exists (p2 : parameter u2),
-      JMeq (run u1 p1) (run u2 p2).
+      value u1 p1 = value u2 p2.
 
   Lemma reflexive {E A} {x : C.t E A} (u : UseCase.t x) : t u u.
     intro p; exists p.
-    apply JMeq_refl.
+    reflexivity.
   Qed.
 
   Lemma transitivity {E A} {x : C.t E A} {u1 u2 u3 : UseCase.t x}
@@ -47,7 +57,7 @@ Module Le.
     destruct (H12 p1) as [p2 Heq12].
     destruct (H23 p2) as [p3 Heq23].
     exists p3.
-    now apply JMeq_trans with (y := run u2 p2).
+    now rewrite Heq12.
   Qed.
 End Le.
 
@@ -59,27 +69,22 @@ End Eq.
 Module Join.
   Definition t {E A} {x : C.t E A} (u1 u2 : UseCase.t x) : UseCase.t x := {|
     parameter := parameter u1 + parameter u2;
-    result := fun p =>
+    value := fun p =>
       match p with
-      | inl p1 => result u1 p1
-      | inr p2 => result u2 p2
-      end;
-    run := fun p =>
-      match p with
-      | inl p1 => run u1 p1
-      | inr p2 => run u2 p2
+      | inl p1 => value u1 p1
+      | inr p2 => value u2 p2
       end |}.
 
   Lemma le_left {E A} {x : C.t E A} (u1 u2 : UseCase.t x)
     : Le.t u1 (t u1 u2).
     intro p1; exists (inl p1).
-    apply JMeq_refl.
+    reflexivity.
   Qed.
 
   Lemma le_right {E A} {x : C.t E A} (u1 u2 : UseCase.t x)
     : Le.t u2 (t u1 u2).
     intro p2; exists (inr p2).
-    apply JMeq_refl.
+    reflexivity.
   Qed.
 
   Lemma smallest {E A} {x : C.t E A} (u1 u2 u3 : UseCase.t x)
@@ -96,8 +101,7 @@ End Join.
 Module Bottom.
   Definition new {E A} (x : C.t E A) : UseCase.t x := {|
     parameter := Empty_set;
-    result := fun p => match p with end;
-    run := fun p => match p with end |}.
+    value := fun p => match p with end |}.
 
   Lemma smallest {E A} {x : C.t E A} (u : UseCase.t x) : Le.t (new x) u.
     intro p.
@@ -108,44 +112,54 @@ End Bottom.
 Module Top.
   Definition ret {E A} (v : A) : UseCase.t (C.Ret (E := E) A v) := {|
     parameter := unit;
-    result := fun _ => v;
-    run := fun _ => Run.Ret v |}.
+    value := fun _ => existT _ _ (Run.Ret v) |}.
 
   Definition call {E} (c : Effect.command E) : UseCase.t (C.Call c) := {|
     parameter := Effect.answer E c;
-    result := fun a => a;
-    run := fun a => Run.Call c a |}.
+    value := fun a => existT _ _ (Run.Call c a) |}.
 
   Definition _let {E A B} {x : C.t E A} {f : A -> C.t E B} (u_x : UseCase.t x)
     (u_f : forall v_x, UseCase.t (f v_x)) : UseCase.t (C.Let A B x f).
     refine {|
       parameter := {p_x : parameter u_x & parameter (u_f (result u_x p_x))};
-      result := fun p =>
+      value := fun p =>
         let (p_x, p_f) := p in
-        result (u_f (result u_x p_x)) p_f;
+        existT _ (result (u_f _) p_f) _ |}.
+    apply (Run.Let (x := result u_x p_x)).
+    - exact (run u_x p_x).
+    - exact (run (u_f (result u_x p_x)) p_f).
+  Defined.
+
+  (*Definition _let {E A B} {x : C.t E A} {f : A -> C.t E B} (u_x : UseCase.t x)
+    (u_f : forall v_x, UseCase.t (f v_x)) : UseCase.t (C.Let A B x f).
+    refine {|
+      parameter := {p_x : parameter u_x & parameter (u_f (projT1 (run u_x p_x)))};
       run := _ |}.
     intro p.
     destruct p as [p_x p_f].
+    eexists.
     eapply Run.Let.
-    - exact (run u_x p_x).
+    - destruct (run u_x p_x).
+      exact t0.
     - exact (run (u_f _) p_f).
-  Defined.
+  Defined.*)
 
   Definition choose {E A} {x1 x2 : C.t E A} (u1 : UseCase.t x1)
     (u2 : UseCase.t x2) : UseCase.t (C.Choose A x1 x2).
     refine {|
       parameter := parameter u1 + parameter u2;
-      result := fun p =>
+      (*result := fun p =>
         match p with
         | inl p1 => result u1 p1
         | inr p2 => result u2 p2
-        end;
-      run := _ |}.
-    intro p.
+        end;*)
+      value := fun p => _ |}.
     destruct p as [p1 | p2].
-    - apply Run.ChooseLeft.
+    - exists (result u1 p1).
+      apply Run.ChooseLeft.
       exact (run u1 p1).
-    - apply Run.ChooseRight.
+    - exists (result u2 p2).
+      apply Run.ChooseRight.
       exact (run u2 p2).
   Defined.
 
@@ -153,12 +167,12 @@ Module Top.
     (u_y : UseCase.t y) : UseCase.t (C.Join A B x y).
     refine {|
       parameter := parameter u_x * parameter u_y;
-      result := fun p =>
+      (*result := fun p =>
         let (p_x, p_y) := p in
-        (result u_x p_x, result u_y p_y);
-      run := _ |}.
-    intro p.
+        (result u_x p_x, result u_y p_y);*)
+      value := fun p => _ |}.
     destruct p as [p_x p_y].
+    exists (result u_x p_x, result u_y p_y).
     apply Run.Join.
     - exact (run u_x p_x).
     - exact (run u_y p_y).
@@ -186,9 +200,9 @@ Module Top.
       end).
   Qed.
 
-  Lemma call_uniq {E c a} (r : Run.t (C.Call (E := E) c) a)
+  (*Lemma call_uniq {E c a} (r : Run.t (C.Call (E := E) c) a)
     : JMeq r (Run.Call _ a).
-  Admitted.
+  Admitted.*)
 
   Axiom falso : False.
 
