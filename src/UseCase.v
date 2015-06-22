@@ -74,13 +74,73 @@ Module Join.
 End Join.
 
 Module Bottom.
-  Definition bottom {E A} (x : C.t E A) : UseCase.t x := {|
+  Definition new {E A} (x : C.t E A) : UseCase.t x := {|
     parameter := Empty_set;
     result := fun p => match p with end;
     run := fun p => match p with end |}.
 
-  Lemma smallest {E A} {x : C.t E A} (u : UseCase.t x) : Le.t (bottom x) u.
+  Lemma smallest {E A} {x : C.t E A} (u : UseCase.t x) : Le.t (new x) u.
     intro p.
     destruct p.
   Qed.
 End Bottom.
+
+Module Top.
+  Definition ret {E A} (v : A) : UseCase.t (C.Ret (E := E) A v) := {|
+    parameter := unit;
+    result := fun _ => v;
+    run := fun _ => Run.Ret v |}.
+
+  Definition call {E} (c : Effect.command E) : UseCase.t (C.Call c) := {|
+    parameter := Effect.answer E c;
+    result := fun a => a;
+    run := fun a => Run.Call E c a |}.
+
+  Definition _let {E A B} {x : C.t E A} {f : A -> C.t E B} (u_x : UseCase.t x)
+    (u_f : forall v_x, UseCase.t (f v_x)) : UseCase.t (C.Let A B x f).
+    refine {|
+      parameter := {p_x : parameter u_x & parameter (u_f (result u_x p_x))};
+      result := fun p =>
+        let (p_x, p_f) := p in
+        result (u_f (result u_x p_x)) p_f;
+      run := _ |}.
+    intro p.
+    destruct p as [p_x p_f].
+    eapply Run.Let.
+    - exact (run u_x p_x).
+    - exact (run (u_f _) p_f).
+  Defined.
+
+  Definition choose {E A} {x1 x2 : C.t E A} (u1 : UseCase.t x1)
+    (u2 : UseCase.t x2) : UseCase.t (C.Choose A x1 x2).
+    refine {|
+      parameter := parameter u1 + parameter u2;
+      result := fun p =>
+        match p with
+        | inl p1 => result u1 p1
+        | inr p2 => result u2 p2
+        end;
+      run := _ |}.
+    intro p.
+    destruct p as [p1 | p2].
+    - apply Run.ChooseLeft.
+      exact (run u1 p1).
+    - apply Run.ChooseRight.
+      exact (run u2 p2).
+  Defined.
+
+  Definition join {E A B} {x : C.t E A} {y : C.t E B} (u_x : UseCase.t x)
+    (u_y : UseCase.t y) : UseCase.t (C.Join A B x y).
+    refine {|
+      parameter := parameter u_x * parameter u_y;
+      result := fun p =>
+        let (p_x, p_y) := p in
+        (result u_x p_x, result u_y p_y);
+      run := _ |}.
+    intro p.
+    destruct p as [p_x p_y].
+    apply Run.Join.
+    - exact (run u_x p_x).
+    - exact (run u_y p_y).
+  Defined.
+End Top.
