@@ -206,6 +206,33 @@ Module Top.
 
   Axiom falso : False.
 
+  (*Fixpoint universal_p {E A} {x : C.t E A} {v} (r : Run.t x v)
+    : parameter (new x).
+    destruct r; simpl.
+    - exact tt.
+    - exact answer.
+    - exists (universal_p _ _ _ _ r1).
+      eapply universal_p.
+      
+      apply (universal_p _ _ (c_f .
+      
+  Defined.*)
+
+  Fixpoint greatest {E A} {x : C.t E A} {v} (r : Run.t x v)
+    : exists p, existT _ v r = value (new x) p.
+    destruct r; simpl.
+    - exists tt.
+      reflexivity.
+    - exists answer.
+      reflexivity.
+    - destruct (greatest _ _ _ _ r1) as [p1 H1].
+      assert (r2' : Run.t (c_f (result (new c_x) p1)) y) by destruct falso.
+(*      replace x with (result (new c_x) p1) in r2 by destruct falso.*)
+      destruct (greatest _ _ (c_f (result (new c_x) p1)) y r2') as [p2 H2].
+      exists (existT _ p1 p2).
+      replace y with (result (new (c_f (result (new c_x) p1))) p2) by destruct falso.
+  Qed.
+
   Fixpoint greatest {E A} {x : C.t E A} {v} (r : Run.t x v)
     : exists p, JMeq r (run (new x) p).
     destruct r; simpl.
