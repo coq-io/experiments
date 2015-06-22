@@ -1,7 +1,7 @@
 (** Formal definition of a use case. *)
 Require Import Coq.Logic.JMeq.
 Require Import Io.All.
-
+Module UseCase.
 Record t {E : Effect.t} {A : Type} (x : C.t E A) : Type := New {
   parameter : Type;
   result : parameter -> A;
@@ -10,6 +10,26 @@ Arguments New {E A x} _ _ _.
 Arguments parameter {E A x} _.
 Arguments result {E A x} _ _.
 Arguments run {E A x} _ _.
+
+(*Module EqRun.
+  Inductive t {E} : forall {A1 A2} {x1 : C.t E A1} {x2 : C.t E A2} {v1 v2},
+    Run.t x1 v1 -> Run.t x2 v2 -> Prop :=
+  | Ret : forall A (v : A), t (Run.Ret v) (Run.Ret v)
+  | Call : forall c a, t (Run.Call c a) (Run.Call c a).
+End EqRun.
+
+Lemma call_uniq {E c a} (r : Run.t (C.Call (E := E) c) a)
+  : EqRun.t r (Run.Call _ a).
+  refine (
+    match r in Run.t x _ return
+      match x with
+      | C.Call c => EqRun.t r (Run.Call _ a)
+      | _ => True
+      end : Prop with
+    | Run.Call _ _ => _
+    | _ => I
+    end).
+Qed.*)
 
 Module Le.
   Definition t {E A} {x : C.t E A} (u1 u2 : UseCase.t x) : Prop :=
@@ -94,7 +114,7 @@ Module Top.
   Definition call {E} (c : Effect.command E) : UseCase.t (C.Call c) := {|
     parameter := Effect.answer E c;
     result := fun a => a;
-    run := fun a => Run.Call E c a |}.
+    run := fun a => Run.Call c a |}.
 
   Definition _let {E A B} {x : C.t E A} {f : A -> C.t E B} (u_x : UseCase.t x)
     (u_f : forall v_x, UseCase.t (f v_x)) : UseCase.t (C.Let A B x f).
@@ -143,4 +163,59 @@ Module Top.
     - exact (run u_x p_x).
     - exact (run u_y p_y).
   Defined.
+
+  Fixpoint new {E A} (x : C.t E A) : UseCase.t x :=
+    match x with
+    | C.Ret _ v => ret v
+    | C.Call c => call c
+    | C.Let _ _ x f => _let (new x) (fun v_x => new (f v_x))
+    | C.Choose _ x1 x2 => choose (new x1) (new x2)
+    | C.Join _ _ x y => join (new x) (new y)
+    end.
+
+  Lemma ret_uniq {E A v v'} (r : Run.t (C.Ret (E := E) A v) v')
+    : JMeq r (Run.Ret (E := E) v).
+    exact (
+      match r in Run.t x _ return
+        match x with
+        | C.Ret _ v => JMeq r (Run.Ret v)
+        | _ => True
+        end : Prop with
+      | Run.Ret _ _ => JMeq_refl
+      | _ => I
+      end).
+  Qed.
+
+  Lemma call_uniq {E c a} (r : Run.t (C.Call (E := E) c) a)
+    : JMeq r (Run.Call _ a).
+  Admitted.
+
+  Axiom falso : False.
+
+  Fixpoint greatest {E A} {x : C.t E A} {v} (r : Run.t x v)
+    : exists p, JMeq r (run (new x) p).
+    destruct r; simpl.
+    - exists tt.
+      apply JMeq_refl.
+    - exists answer.
+      apply JMeq_refl.
+    - destruct (greatest _ _ _ _ r1) as [p_x H_x].
+      assert (r_f : Run.t (c_f (result (new c_x) p_x)) y).
+      destruct falso.
+      destruct (greatest _ _ _ _ r_f) as [p_f H_f].
+      exists (existT _ p_x p_f).
+      destruct falso.
+    - destruct (greatest _ _ _ _ r) as [p1 H1].
+      exists (inl p1).
+      apply JMeq_congr.
+  Qed.
+
+  Fixpoint greatest {E A} {x : C.t E A} (u : UseCase.t x) : Le.t u (new x).
+    destruct x as [A v | | | |]; simpl.
+    - intro p; exists tt; simpl.
+      apply ret_uniq.
+    - intro p; exists (result u p); simpl.
+      Check run u p.
+
+  Qed.
 End Top.
