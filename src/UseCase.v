@@ -62,7 +62,7 @@ Module Join.
     apply JMeq_refl.
   Qed.
 
-  Lemma smallest_bound {E A} {x : C.t E A} (u1 u2 u3 : UseCase.t x)
+  Lemma smallest {E A} {x : C.t E A} (u1 u2 u3 : UseCase.t x)
     (H1 : Le.t u1 u3) (H2 : Le.t u2 u3) : Le.t (t u1 u2) u3.
     intro p.
     destruct p as [p1 | p2].
@@ -72,3 +72,15 @@ Module Join.
       now exists p3.
   Qed.
 End Join.
+
+Module Bottom.
+  Definition bottom {E A} (x : C.t E A) : UseCase.t x := {|
+    parameter := Empty_set;
+    result := fun p => match p with end;
+    run := fun p => match p with end |}.
+
+  Lemma smallest {E A} {x : C.t E A} (u : UseCase.t x) : Le.t (bottom x) u.
+    intro p.
+    destruct p.
+  Qed.
+End Bottom.
