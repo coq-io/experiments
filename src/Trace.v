@@ -2,19 +2,21 @@
     [Prop] to assert correspondance with a computation. *)
 Require Import Io.All.
 
-Inductive t (E : Effect.t) : Type :=
-| Ret : t E
-| Call : forall c, Effect.answer E c -> t E
-| Let : t E -> t E -> t E
-| ChooseLeft : t E -> t E
-| ChooseRight : t E -> t E
-| Join : t E -> t E -> t E.
-Arguments Ret {E}.
-Arguments Call {E} _ _.
-Arguments Let {E} _ _.
-Arguments ChooseLeft {E} _.
-Arguments ChooseRight {E} _.
-Arguments Join {E} _ _.
+Module Trace.
+  Inductive t (E : Effect.t) : Type :=
+  | Ret : t E
+  | Call : forall c, Effect.answer E c -> t E
+  | Let : t E -> t E -> t E
+  | ChooseLeft : t E -> t E
+  | ChooseRight : t E -> t E
+  | Join : t E -> t E -> t E.
+  Arguments Ret {E}.
+  Arguments Call {E} _ _.
+  Arguments Let {E} _ _.
+  Arguments ChooseLeft {E} _.
+  Arguments ChooseRight {E} _.
+  Arguments Join {E} _ _.
+End Trace.
 
 Module Valid.
   Inductive t {E} : forall {A}, C.t E A -> Trace.t E -> A -> Type :=
@@ -35,7 +37,7 @@ Module Valid.
 End Valid.
 
 Fixpoint of_run {E A} {x : C.t E A} {v_x : A} (r_x : Run.t x v_x)
-  : {t_x : t E & Valid.t x t_x v_x}.
+  : {t_x : Trace.t E & Valid.t x t_x v_x}.
   destruct r_x.
   - exists Trace.Ret.
     apply Valid.Ret.
