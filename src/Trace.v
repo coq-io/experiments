@@ -106,12 +106,26 @@ Module Test.
     Effect.answer := Command.answer |}.
 
   Definition your_name : C.t E unit :=
-    do! call E (Command.Print (LString.s "What is your name?")) in
-    let! name := call E Command.Read in
+    do! C.Call (E := E) (Command.Print (LString.s "What is your name?")) in
+    let! name := C.Call (E := E) Command.Read in
     match name return C.t E unit with
-    | None => ret tt
-    | Some name => call E (Command.Print name)
+    | None => C.Ret unit tt
+    | Some name => C.Call (E := E) (Command.Print name)
     end.
+
+  Definition your_name_uc (name : LString.t) : Trace.t E :=
+    Trace.Let (Trace.Call (E := E) (Command.Print (LString.s "What is your name?")) tt) (
+    Trace.Let (Trace.Call (E := E) Command.Read (Some name)) (
+    Trace.Call (E := E) (Command.Print name) tt)).
+
+  Lemma your_name_uc_is_valid (name : LString.t)
+    : Valid.t your_name (your_name_uc name) tt.
+    eapply Valid.Let.
+    apply Valid.Call.
+    eapply Valid.Let.
+    apply Valid.Call.
+    apply (Valid.Call (E := E) (Command.Print name)).
+  Qed.
 
   Definition run_your_name (name : LString.t) : Run.t your_name tt.
     apply (Run.Let (Run.Call (E := E)
