@@ -34,7 +34,7 @@ Module Valid.
     t (C.Join _ _ x y) (Trace.Join t_x t_y) (v_x, v_y).
 End Valid.
 
-Fixpoint of_run {E A} (x : C.t E A) (v_x : A) (r_x : Run.t x v_x)
+Fixpoint of_run {E A} {x : C.t E A} {v_x : A} (r_x : Run.t x v_x)
   : {t_x : t E & Valid.t x t_x v_x}.
   destruct r_x.
   - exists Trace.Ret.
@@ -57,7 +57,7 @@ Fixpoint of_run {E A} (x : C.t E A) (v_x : A) (r_x : Run.t x v_x)
     now apply Valid.Join.
 Defined.
 
-Fixpoint to_run {E A} (x : C.t E A) (t_x : Trace.t E) (v_x : A)
+Fixpoint to_run {E A} {x : C.t E A} {t_x : Trace.t E} {v_x : A}
   (H : Valid.t x t_x v_x) : Run.t x v_x.
   destruct H.
   - apply Run.Ret.
@@ -79,3 +79,45 @@ Fixpoint to_run {E A} (x : C.t E A) (t_x : Trace.t E) (v_x : A)
     + eapply to_run.
       apply H0.
 Defined.
+
+Module Test.
+  Require Import Coq.Strings.Ascii.
+  Require Import ListString.All.
+
+  Import C.Notations.
+  Local Open Scope char.
+
+  Module Command.
+    Inductive t : Set :=
+    | Print (message : LString.t)
+    | Read.
+
+    Definition answer (c : t) : Type :=
+      match c with
+      | Print _ => unit
+      | Read => option LString.t
+      end.
+  End Command.
+
+  Definition E : Effect.t := {|
+    Effect.command := Command.t;
+    Effect.answer := Command.answer |}.
+
+  Definition your_name : C.t E unit :=
+    do! call E (Command.Print (LString.s "What is your name?")) in
+    let! name := call E Command.Read in
+    match name return C.t E unit with
+    | None => ret tt
+    | Some name => call E (Command.Print name)
+    end.
+
+  Definition run_your_name (name : LString.t) : Run.t your_name tt.
+    apply (Run.Let (Run.Call (E := E)
+      (Command.Print (LString.s "What is your name?")) tt)).
+    apply (Run.Let (Run.Call (E := E) Command.Read (Some name))).
+    apply (Run.Call (E := E) (Command.Print name) tt).
+  Defined.
+
+  (*Print run_your_name.
+  Compute fun name => projT1 (of_run (run_your_name name)).*)
+End Test.
