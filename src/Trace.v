@@ -127,16 +127,18 @@ Fixpoint to_of_run {E A} {x : C.t E A} {v_x : A} (r_x : Run.t x v_x)
 Qed.
 
 Module Test.
+  Require Import Coq.Lists.List.
   Require Import Coq.Strings.Ascii.
   Require Import ListString.All.
 
+  Import ListNotations.
   Import C.Notations.
   Local Open Scope char.
 
   Module Command.
     Inductive t : Set :=
     | Print (message : LString.t)
-    | Read.
+    | ReadLine.
 
     Definition answer (c : t) : Type :=
       match c with
@@ -151,16 +153,16 @@ Module Test.
 
   Definition your_name : C.t E unit :=
     do! C.Call (E := E) (Command.Print (LString.s "What is your name?")) in
-    let! name := C.Call (E := E) Command.Read in
+    let! name := C.Call (E := E) Command.ReadLine in
     match name return C.t E unit with
     | None => C.Ret unit tt
-    | Some name => C.Call (E := E) (Command.Print name)
+    | Some name => C.Call (E := E) (Command.Print (LString.s "Hello " ++ name))
     end.
 
   Definition your_name_uc (name : LString.t) : Trace.t E :=
     Trace.Let (Trace.Call (E := E) (Command.Print (LString.s "What is your name?")) tt) (
-    Trace.Let (Trace.Call (E := E) Command.Read (Some name)) (
-    Trace.Call (E := E) (Command.Print name) tt)).
+    Trace.Let (Trace.Call (E := E) Command.ReadLine (Some name)) (
+    Trace.Call (E := E) (Command.Print (LString.s "Hello " ++ name)) tt)).
 
   Lemma your_name_uc_is_valid (name : LString.t)
     : Valid.t your_name (your_name_uc name) tt.
@@ -168,16 +170,34 @@ Module Test.
     apply Valid.Call.
     eapply Valid.Let.
     apply Valid.Call.
-    apply (Valid.Call (E := E) (Command.Print name)).
+    apply (Valid.Call (E := E) (Command.Print _)).
   Qed.
 
   Definition run_your_name (name : LString.t) : Run.t your_name tt.
     apply (Run.Let (Run.Call (E := E)
       (Command.Print (LString.s "What is your name?")) tt)).
-    apply (Run.Let (Run.Call (E := E) Command.Read (Some name))).
-    apply (Run.Call (E := E) (Command.Print name) tt).
+    apply (Run.Let (Run.Call (E := E) Command.ReadLine (Some name))).
+    apply (Run.Call (E := E) (Command.Print (_ ++ name)) tt).
   Defined.
 
-  (*Print run_your_name.
-  Compute fun name => projT1 (of_run (run_your_name name)).*)
+  Definition get_name : C.t E (option LString.t) :=
+    do! C.Call (E := E) (Command.Print (LString.s "What is your name?")) in
+    C.Call (E := E) Command.ReadLine.
+
+  Definition your_name2 : C.t E unit :=
+    let! name := get_name in
+    match name return C.t E unit with
+    | None => C.Ret unit tt
+    | Some name => C.Call (E := E) (Command.Print (LString.s "Hello " ++ name))
+    end.
+
+  Definition get_name_uc (name : LString.t) : Run.t get_name (Some name).
+    eapply Let. apply (Run.Call (E := E) (Command.Print _) tt).
+    apply (Run.Call (E := E) Command.ReadLine (Some name)).
+  Defined.
+
+  Definition your_name2_uc (name : LString.t) : Run.t your_name2 tt.
+    eapply Let. apply (get_name_uc name).
+    apply (Run.Call (E := E) (Command.Print (LString.s _ ++ name)) tt).
+  Defined.
 End Test.
