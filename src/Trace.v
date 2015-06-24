@@ -82,6 +82,50 @@ Fixpoint to_run {E A} {x : C.t E A} {t_x : Trace.t E} {v_x : A}
       apply H0.
 Defined.
 
+Fixpoint of_to_run {E A} {x : C.t E A} {t_x : Trace.t E} {v_x : A}
+  (H : Valid.t x t_x v_x) : of_run (to_run H) = existT _ t_x H.
+  destruct H; simpl.
+  - reflexivity.
+  - reflexivity.
+  - rewrite (of_to_run _ _ _ _ _ H).
+    rewrite (of_to_run _ _ _ _ _ H0).
+    reflexivity.
+  - rewrite (of_to_run _ _ _ _ _ H).
+    reflexivity.
+  - rewrite (of_to_run _ _ _ _ _ H).
+    reflexivity.
+  - rewrite (of_to_run _ _ _ _ _ H).
+    rewrite (of_to_run _ _ _ _ _ H0).
+    reflexivity.
+Qed.
+
+Fixpoint to_of_run {E A} {x : C.t E A} {v_x : A} (r_x : Run.t x v_x)
+  : (let (_, H) := of_run r_x in to_run H) = r_x.
+  destruct r_x; simpl.
+  - reflexivity.
+  - reflexivity.
+  - assert (H1 := to_of_run _ _ _ _ r_x1).
+    destruct (of_run r_x1) as [t_x1 H_x1].
+    assert (H2 := to_of_run _ _ _ _ r_x2).
+    destruct (of_run r_x2) as [t_x2 H_x2].
+    simpl.
+    now rewrite H1; rewrite H2.
+  - assert (H := to_of_run _ _ _ _ r_x).
+    destruct (of_run r_x) as [t_x H_x].
+    simpl.
+    now rewrite H.
+  - assert (H := to_of_run _ _ _ _ r_x).
+    destruct (of_run r_x) as [t_x H_x].
+    simpl.
+    now rewrite H.
+  - assert (H1 := to_of_run _ _ _ _ r_x1).
+    destruct (of_run r_x1) as [t_x1 H_x1].
+    assert (H2 := to_of_run _ _ _ _ r_x2).
+    destruct (of_run r_x2) as [t_x2 H_x2].
+    simpl.
+    now rewrite H1; rewrite H2.
+Qed.
+
 Module Test.
   Require Import Coq.Strings.Ascii.
   Require Import ListString.All.
