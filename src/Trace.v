@@ -180,67 +180,6 @@ Module Test.
     apply (Run.Call (E := E) (Command.Print (_ ++ name)) tt).
   Defined.
 
-  Definition run_your_name_full (name : option LString.t) : Run.t your_name tt.
-    eapply Let. apply (Run.Call (E := E) (Command.Print _) tt).
-    eapply Let. apply (Run.Call (E := E) Command.ReadLine name).
-    destruct name as [name |].
-    - apply (Run.Call (E := E) (Command.Print (_ ++ name)) tt).
-    - apply Run.Ret.
-  Defined.
-
-  (*Definition gre {E A B} {x : C.t E A} {f : A -> C.t E B} {v_y : B}
-    (r : Run.t (C.Let _ _ x f) v_y) : A.
-    exact (
-      match r in t x _ return
-        match x with
-        | C.Let A _ _ _ => A
-        | _ => unit
-        end with
-      | Run.Let _ _ _ v_x _ _ _ _ => v_x
-      | _ => tt
-      end).
-  Defined.
-
-  Definition gre2 {E A B} {x : C.t E A} {f : A -> C.t E B} {v_y : B}
-    (r : Run.t (C.Let _ _ x f) v_y) : Run.t x (gre r).
-    refine (
-      match r in Run.t x _ return
-        match x with
-        | C.Let _ _ _ _ => Run.t x (gre r)
-        | _ => unit
-        end with
-      | Run.Let _ _ _ _ _ _ _ _ => _
-      | _ => tt
-      end).
-    unfold gre.
-    inversion r.
-  Defined.
-
-  Definition run_your_name_full_is_complete (r : Run.t your_name tt)
-    : option LString.t.
-    unfold your_name in r.
-    refine (
-      match r in t x _ return
-        match x with
-        | C.Let _ _ _ f =>
-          (*match f tt with
-          | C.Let _ _ _ _ => option LString.t
-          | _ => unit
-          end*)
-        | _ => unit
-        end with
-      | Run.Let _ _ _ _ _ _ _ _ => _
-      | _ => tt
-      end).
-  Defined.
-
-  Lemma run_your_name_full_is_complete (r : Run.t your_name tt)
-    : exists name, run_your_name_full name = r.
-    unfold your_name in r.
-    match (
-    inversion r.
-  Qed.*)
-
   Definition get_name : C.t E (option LString.t) :=
     do! C.Call (E := E) (Command.Print (LString.s "What is your name?")) in
     C.Call (E := E) Command.ReadLine.
