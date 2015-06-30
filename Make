@@ -8,6 +8,7 @@ src/Compose.v
 src/ConstraintSmallSteps.v
 src/Examples.v
 src/Glue.v
+src/GuessNumber.v
 src/Lock.v
 src/Positive.v
 src/RunState.v
