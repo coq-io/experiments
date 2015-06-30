@@ -67,3 +67,26 @@ CoFixpoint main : IC.t E unit :=
     handle_commands
   else
     main.
+
+Module Run.
+  Definition ask_login (login : LString.t) : IRun.t ask_login login.
+    apply (IRun.Call (E := E) Command.AskLogin login).
+  Defined.
+
+  Definition ask_password (password : LString.t) : IRun.t ask_password password.
+    apply (IRun.Call (E := E) Command.AskPassword password).
+  Defined.
+
+  Definition is_authorized (login password : LString.t) (answer : bool)
+    : IRun.t (is_authorized login password) answer.
+    apply (IRun.Call (E := E) (Command.IsAuthorized login password) answer).
+  Defined.
+
+  CoFixpoint main_not_authorized (login password : LString.t) : IRun.t main tt.
+    rewrite (step_eq main).
+    eapply IRun.Let. apply (ask_login login).
+    eapply IRun.Let. apply (ask_password password).
+    eapply IRun.Let. apply (is_authorized login password false).
+    apply (main_not_authorized login password).
+  Defined.
+End Run.
