@@ -10,6 +10,7 @@ src/Examples.v
 src/Glue.v
 src/GuessNumber.v
 src/Lock.v
+src/Login.v
 src/Positive.v
 src/RunState.v
 src/Sequential.v
