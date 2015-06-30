@@ -107,7 +107,7 @@ Module Example.
 
     Definition program_one (n : nat) : Run.t (Get.eval (program 1) []) (tt, [n]).
       simpl.
-      apply let_ret.
+      eapply Let. apply Ret.
       eapply Let.
       - apply Get.Run.eval_get.
       - apply Ret.
