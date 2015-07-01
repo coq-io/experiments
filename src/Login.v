@@ -127,4 +127,14 @@ Module Run.
     eapply IRun.Let. apply get_quit.
     apply quit.
   Defined.
+
+  CoFixpoint handle_infinite_commands
+    (commands : Stream (LString.t * LString.t)) : IRun.t handle_commands tt.
+    rewrite (IC.unfold_eq handle_commands).
+    destruct commands as [[command result] commands].
+    eapply IRun.Let. apply (get_ok command).
+    eapply IRun.Let. apply (run command result).
+    eapply IRun.Let. apply (answer result).
+    apply (handle_infinite_commands commands).
+  Defined.
 End Run.
