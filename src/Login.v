@@ -1,5 +1,6 @@
 Require Import Coq.Lists.Streams.
 Require Import Io.All.
+Require Import ListPlus.All.
 Require Import ListString.All.
 
 Import IC.Notations.
@@ -138,3 +139,25 @@ Module Run.
     apply (handle_infinite_commands commands).
   Defined.
 End Run.
+
+Module Users.
+  Definition t := list (LString.t * LString.t).
+End Users.
+
+Module Eval.
+  Definition eval_command (users : Users.t) (c : Command.t)
+    : IC.t E (Effect.answer E c) :=
+    match c with
+    | Command.IsAuthorized login password =>
+      match Assoc.find LString.eqb users login with
+      | None => iret false
+      | Some password' => iret (LString.eqb password password')
+      end
+    | Command.AskLogin => icall E Command.AskLogin
+    | Command.AskPassword => icall E Command.AskPassword
+    | Command.Get => icall E Command.Get
+    | Command.Run command => icall E (Command.Run command)
+    | Command.Answer result => icall E (Command.Answer result)
+    | Command.Quit => icall E Command.Quit
+    end.
+End Eval.
