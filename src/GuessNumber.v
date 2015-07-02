@@ -1,6 +1,7 @@
 (** A program to guess the number of the user using comparisons. *)
 Require Import Coq.Lists.List.
 Require Import Io.All.
+Require Import Io.Evaluate.
 
 Import C.Notations.
 
@@ -88,19 +89,35 @@ Module Run.
     - eapply Run.Let. apply (propose _ Lt).
       apply lts.
   Defined.
-
-  Module Nat.
-    Require Import Coq.Arith.Div2.
-
-    Definition mean (n m : nat) : nat :=
-      div2 (n + m).
-
-    Definition ex1 : Run.t (guess mean 5 0 10) (Some 4).
-      apply (Run.Let (propose 5 Lt)).
-      apply (Run.Let (propose 2 Gt)).
-      apply (Run.Let (propose 3 Gt)).
-      apply (Run.Let (propose 4 Eq)).
-      apply Run.Ret.
-    Defined.
-  End Nat.
 End Run.
+
+Module Eval.
+  Definition eval_command {A} (compare : A -> A -> comparison) (x : A)
+    (c : Command.t A) : Effect.answer (E A) c :=
+    match c with
+    | Command.Propose x' => compare x x'
+    end.
+
+  Definition eval {A B} (compare : A -> A -> comparison) (x : A)
+    (e : C.t (E A) B) : B :=
+    Evaluate.pure (E := E A) (eval_command compare x) (fun _ x _ => x) e.
+End Eval.
+
+Module Nat.
+  Require Import Coq.Arith.Compare_dec.
+  Require Import Coq.Arith.Div2.
+
+  Definition mean (n m : nat) : nat :=
+    div2 (n + m).
+
+  Definition ex1 : Run.t (guess mean 5 0 10) (Some 4).
+    apply (Run.Let (Run.propose 5 Lt)).
+    apply (Run.Let (Run.propose 2 Gt)).
+    apply (Run.Let (Run.propose 3 Gt)).
+    apply (Run.Let (Run.propose 4 Eq)).
+    apply Run.Ret.
+  Defined.
+
+  Definition ex2 : Eval.eval nat_compare 4 (guess mean 5 0 10) = Some 4 :=
+    eq_refl.
+End Nat.
