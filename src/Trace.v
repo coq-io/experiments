@@ -152,7 +152,7 @@ Module I.
       | Join t_x t_y => Join t_x t_y
       end.
 
-    Lemma unfold_eq {E} (t : Trace.t E) : t = unfold t.
+    Definition unfold_eq {E} (t : Trace.t E) : t = unfold t.
       destruct t; reflexivity.
     Defined.
 
@@ -205,10 +205,10 @@ Module I.
       | Join _ _ _ _ _ _ _ _ H_x H_y => Join H_x H_y
       end.
 
-    Lemma unfold_eq {E A} {x : C.I.t E A} {t : Trace.t E} {v : A}
+    Definition unfold_eq {E A} {x : C.I.t E A} {t : Trace.t E} {v : A}
       (H : Valid.t x t v) : H = unfold H.
       destruct H; reflexivity.
-    Qed.
+    Defined.
   End Valid.
 
   CoFixpoint trace_of_run {E A} {x : C.I.t E A} {v_x : A} (r_x : Run.I.t x v_x)
