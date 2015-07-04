@@ -9,6 +9,7 @@ src/ConstraintSmallSteps.v
 src/Examples.v
 src/Glue.v
 src/GuessNumber.v
+src/Infinite.v
 src/Lock.v
 src/Login.v
 src/Positive.v
