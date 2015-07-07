@@ -33,11 +33,14 @@ Definition your_name : C.t E unit :=
   end.
 
 Module Run.
-  Definition your_name_name (name : LString.t) : Run.t your_name tt.
+  Definition your_name_all (name : option LString.t) : Run.t your_name tt.
     apply (Run.Let (Run.Call (E := E)
       (Command.Print (LString.s "What is your name?")) tt)).
-    apply (Run.Let (Run.Call (E := E) Command.ReadLine (Some name))).
-    apply (Run.Call (E := E) (Command.Print (_ ++ name)) tt).
+    destruct name as [name |].
+    - apply (Run.Let (Run.Call (E := E) Command.ReadLine (Some name))).
+      apply (Run.Call (E := E) (Command.Print (_ ++ name)) tt).
+    - apply (Run.Let (Run.Call (E := E) Command.ReadLine None)).
+      apply Run.Ret.
   Defined.
 
   Definition your_name_me : Run.t your_name tt.
@@ -46,4 +49,10 @@ Module Run.
     apply (Run.Let (Run.Call (E := E) Command.ReadLine (Some (LString.s "me")))).
     apply (Run.Call (E := E) (Command.Print (LString.s "Hello me")) tt).
   Defined.
+
+  Lemma name_generalizes_name : exists (name : option LString.t),
+    your_name_me = your_name_all name.
+    exists (Some (LString.s "me")).
+    reflexivity.
+  Qed.
 End Run.
