@@ -1,5 +1,6 @@
 (** Formalization of the notion of generalization. *)
 Require Import Coq.Lists.List.
+Require Import Coq.Logic.JMeq.
 Require Import Coq.Strings.Ascii.
 Require Import Io.All.
 Require Import ListString.All.
@@ -32,6 +33,22 @@ Definition your_name : C.t E unit :=
   | Some name => C.Call (E := E) (Command.Print (LString.s "Hello " ++ name))
   end.
 
+Module UseCase.
+  Record t {E A} (x : C.t E A) : Type := New {
+    P : Type;
+    v : P -> A;
+    r : forall p, Run.t x (v p) }.
+  Arguments New {E A x} _ _ _.
+  Arguments P {E A x} _.
+  Arguments v {E A x} _ _.
+  Arguments r {E A x} _ _.
+
+  Module Generalize.
+    Definition t {E A} {x : C.t E A} (u1 u2 : UseCase.t x) : Prop :=
+      forall (p2 : P u2), exists (p1 : P u1), JMeq (r u1 p1) (r u2 p2).
+  End Generalize.
+End UseCase.
+
 Module Run.
   Definition your_name_all (name : option LString.t) : Run.t your_name tt.
     apply (Run.Let (Run.Call (E := E)
@@ -55,18 +72,10 @@ Module Run.
     exists (Some (LString.s "me")).
     reflexivity.
   Qed.
-End Run.
 
-Module UseCase.
-  Record t {E A} (x : C.t E A) : Type := New {
-    P : Type;
-    v : P -> A;
-    r : forall p, Run.t x (v p) }.
-  Arguments New {E A x} _ _ _.
-  Arguments P {E A x} _.
-  Arguments v {E A x} _ _.
-  Arguments r {E A x} _ _.
-End UseCase.
+  Definition all : UseCase.t your_name :=
+    UseCase.New (option LString.t) (fun _ => tt) your_name_all.
+End Run.
 
 Module General.
   Fixpoint general {E A} (x : C.t E A) : UseCase.t x.
@@ -109,4 +118,11 @@ Module General.
       destruct p as [p_x p_y].
       apply (Run.Join (r_x p_x) (r_y p_y)).
   Defined.
+
+  Lemma all_is_general : UseCase.Generalize.t Run.all (general your_name).
+    intro p; simpl in p.
+    destruct p as [tt1 [name tt2]].
+    exists name.
+    destruct name as [name |]; simpl in *; destruct tt1, tt2; reflexivity.
+  Qed.
 End General.
