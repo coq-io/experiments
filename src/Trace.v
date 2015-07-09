@@ -37,6 +37,15 @@ Definition your_name_uc (name : LString.t) : Trace.t E :=
   Trace.Let (Trace.Call (E := E) Command.ReadLine (Some name)) (
   Trace.Call (E := E) (Command.Print (LString.s "Hello " ++ name)) tt)).
 
+Module WithTraceNotations.
+  Import Trace.Notations.
+
+  Definition your_name_uc' (name : LString.t) : Trace.t E :=
+    tlet! call E (Command.Print (LString.s "What is your name?")) tt in
+    tlet! call E Command.ReadLine (Some name) in
+    call E (Command.Print (LString.s "Hello " ++ name)) tt.
+End WithTraceNotations.
+
 Lemma your_name_uc_is_valid (name : LString.t)
   : Valid.t your_name (your_name_uc name) tt.
   eapply Valid.Let.
