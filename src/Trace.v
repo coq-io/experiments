@@ -62,6 +62,15 @@ Definition run_your_name (name : LString.t) : Run.t your_name tt.
   apply (Run.Call (E := E) (Command.Print (_ ++ name)) tt).
 Defined.
 
+Module WithRunNotations.
+  Import Run.Notations.
+
+  Definition run_your_name (name : LString.t) : Run.t your_name tt :=
+    rlet! call E (Command.Print (LString.s "What is your name?")) tt in
+    rlet! call E Command.ReadLine (Some name) in
+    call E (Command.Print (_ ++ name)) tt.
+End WithRunNotations.
+
 Definition get_name : C.t E (option LString.t) :=
   do! C.Call (E := E) (Command.Print (LString.s "What is your name?")) in
   C.Call (E := E) Command.ReadLine.
